@@ -42,12 +42,13 @@
         
         /* 輸入欄位通用樣式 */
         label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
-        input[type="text"], input[type="number"] { 
+        /* 注意：時間輸入欄位已改為 type="tel" 進行移動端優化 */
+        input[type="tel"], input[type="number"] { 
             width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 8px; font-size: 18px; box-sizing: border-box;
             /* 讓文字輸入欄位看起來像時間輸入欄位 */
             text-align: center;
         }
-        input[type="text"]::placeholder {
+        input[type="tel"]::placeholder {
             color: #aaa;
             font-style: italic;
         }
@@ -98,7 +99,7 @@
     <button id="format-toggle" onclick="toggleTimeFormat()">切換時制</button>
 
     <h2>⚡ 搶修工時計算器</h2>
-    <p style="text-align: center; font-size: 14px; color: #888;">可輸入 24H (15:30) 或 12H (3:30 PM) 格式。數字輸入如 1243 會自動轉為 12:43。</p>
+    <p style="text-align: center; font-size: 14px; color: #888;">手機點擊欄位會自動切換為數字鍵盤，加速輸入！</p>
 
     <div class="section">
         <span class="section-title" style="color: #dc3545;">1. 預估下班時間範圍</span>
@@ -108,8 +109,8 @@
         <div class="input-group">
             <div class="input-item">
                 <label>上班打卡時間：</label>
-                <!-- 綁定 onblur 事件來執行格式化 -->
-                <input type="text" id="startTime" placeholder="例如：9:00 或 900, 1243" onblur="handleTimeInputFormatting(this)">
+                <!-- 欄位類型從 text 改為 tel，以觸發數字鍵盤 -->
+                <input type="tel" id="startTime" placeholder="例如：9:00 或 900, 1243" onblur="handleTimeInputFormatting(this)">
             </div>
             <div class="input-item">
                 <label>工作時數 (預設8)：</label>
@@ -131,13 +132,13 @@
         <div class="input-group">
             <div class="input-item">
                 <label>加班開始時間：</label>
-                <!-- 綁定 onblur 事件來執行格式化 -->
-                <input type="text" id="otStart" placeholder="例如：18:00 或 1800, 23" onblur="handleTimeInputFormatting(this)">
+                <!-- 欄位類型從 text 改為 tel，以觸發數字鍵盤 -->
+                <input type="tel" id="otStart" placeholder="例如：18:00 或 1800, 23" onblur="handleTimeInputFormatting(this)">
             </div>
             <div class="input-item">
                 <label>加班結束時間：</label>
-                <!-- 綁定 onblur 事件來執行格式化 -->
-                <input type="text" id="otEnd" placeholder="例如：23:30 或 2330, 700" onblur="handleTimeInputFormatting(this)">
+                <!-- 欄位類型從 text 改為 tel，以觸發數字鍵盤 -->
+                <input type="tel" id="otEnd" placeholder="例如：23:30 或 2330, 700" onblur="handleTimeInputFormatting(this)">
             </div>
         </div>
 
@@ -270,6 +271,7 @@ function handleTimeInputFormatting(inputElement) {
         return;
     } else if (digits.length <= 2) {
         // 1 或 2 位數: 視為小時，補零後加 ':00'。例如 9 -> 09:00, 23 -> 23:00
+        // 這裡確保即使是 1 位數也會有 0 補足 (e.g., 5 -> 05:00)
         formattedTime = digits.padStart(2, '0') + ':00';
     } else if (digits.length === 3) {
         // 3 位數: 視為 HMM，例如 730 -> 07:30
@@ -393,9 +395,8 @@ function runOT(showAlert = true) {
     if(!start24h || !end24h) {
         document.getElementById('otRes').style.display = 'none';
         if (showAlert) {
-            // 使用自定義的訊息框取代 alert
+            // 使用 console.error 取代 alert
             console.error('請輸入完整的開始與結束時間，並確保格式正確 (例如：18:30 或 6:30 PM)');
-            // 由於不能用 alert，這裡只是在 console 顯示錯誤，並跳過計算
         }
         return;
     }
@@ -419,7 +420,6 @@ function runOT(showAlert = true) {
     let realHours = diffMins / 60;
 
     // --- 加班申報時數規則：未滿 2 小時以 2 小時計算，超過 2 小時以小數點無條件進位 ---
-    // Math.ceil(realHours) 會向上取整到最接近的整數小時，符合「無條件進位」
     let finalPay = (realHours <= 2) ? 2 : Math.ceil(realHours);
     
     // --- 補休時數計算 (僅計算 23:00 - 07:00 時段) ---
@@ -442,7 +442,6 @@ function runOT(showAlert = true) {
 
     let nightWorkMins = 0;
     
-    // 重新定義 d1, d2 確保日期計算邏輯更穩定
     let workStart = new Date('2000-01-01T' + start24h);
     let workEnd = new Date('2000-01-01T' + end24h);
     if(workEnd <= workStart) workEnd.setDate(workEnd.getDate() + 1); // 處理跨日
@@ -456,46 +455,32 @@ function runOT(showAlert = true) {
     let night2_start = new Date(workStart); night2_start.setDate(night2_start.getDate() + 1); night2_start.setHours(0, 0, 0, 0);
     let night2_end = new Date(night2_start); night2_end.setHours(7, 0, 0, 0);
 
-    // 只有在工作有跨到隔日才計算 night2 區間
-    if (workEnd.getDate() > workStart.getDate() || workStart.getHours() < 7) {
-        nightWorkMins += getIntersectionMins(workStart, workEnd, night2_start, night2_end);
-    }
+    // 只有在工作有跨到隔日或工作時間涵蓋 00:00 - 07:00 才計算 night2 區間
+    // 如果工作在當天 07:00 前結束 (例如 02:00 - 05:00)，night2_start 和 night2_end 應該設在 workStart 的當天
     
-    // 如果工作時間完全落在 00:00 - 07:00 之間，且不跨日 (例如 01:00 - 06:00)
-    // 修正: 由於我們將日期固定在 2000-01-01 或 2000-01-02，如果 d1 < 07:00，它已經落在 night2 的範圍內
-    if (workStart.getDate() === new Date('2000-01-01T00:00').getDate() && workStart.getHours() < 7 && workEnd.getHours() < 7) {
-        // 重新計算 night2 (當日 00:00 到 07:00)
-        let day_night_start = new Date(workStart); day_night_start.setHours(0, 0, 0, 0);
-        let day_night_end = new Date(day_night_start); day_night_end.setHours(7, 0, 0, 0);
-        
-        // 由於前面已經計算過 night2，這裡要確保不會重複計算。
-        // 當 workEnd 不跨日，nightWorkMins 應該只包含 (當日 23:00 - 24:00)
-        // 所以在單日情況下，如果 workStart < 07:00，則需要將 night2 的範圍加回來
-        // 這裡的邏輯有點複雜，最好的做法是把 23:00 - 07:00 視為一個連續的環狀區間。
-        
-        // 為了簡化，我們使用一個統一的夜間時段: 23:00 (前一天) 到 07:00 (當天)
-        // 將所有時間點都標準化到同一個 48 小時週期內
-        
-        let totalNightMins = 0;
+    let totalNightMins = 0;
 
-        // 計算 23:00 - 24:00 (當天)
-        let night3_start = new Date(workStart); night3_start.setHours(23, 0, 0, 0);
-        let night3_end = new Date(workStart); night3_end.setDate(night3_end.getDate() + 1); night3_end.setHours(0, 0, 0, 0);
-        totalNightMins += getIntersectionMins(workStart, workEnd, night3_start, night3_end);
-        
-        // 計算 00:00 - 07:00 (隔天)
-        let night4_start = new Date(workStart); night4_start.setDate(night4_start.getDate() + 1); night4_start.setHours(0, 0, 0, 0);
-        let night4_end = new Date(night4_start); night4_end.setHours(7, 0, 0, 0);
-        totalNightMins += getIntersectionMins(workStart, workEnd, night4_start, night4_end);
-        
-        // 如果工作完全在 00:00 - 07:00 之間 (且不跨 24:00)，例如 02:00 - 05:00
-        // 由於我們將日期設為 2000-01-01，它會被計入 night4
-        
-        // 最終的 nightWorkMins 應該是 totalNightMins
-        nightWorkMins = totalNightMins;
+    // 處理當日 23:00 - 24:00 (如果 workStart 在 23:00 之前)
+    let night_pm_start = new Date(workStart); night_pm_start.setHours(23, 0, 0, 0);
+    let night_pm_end = new Date(workStart); night_pm_end.setDate(night_pm_end.getDate() + 1); night_pm_end.setHours(0, 0, 0, 0);
+    totalNightMins += getIntersectionMins(workStart, workEnd, night_pm_start, night_pm_end);
+
+    // 處理隔日 00:00 - 07:00
+    let night_am_start = new Date(workStart); night_am_start.setDate(night_am_start.getDate() + 1); night_am_start.setHours(0, 0, 0, 0);
+    let night_am_end = new Date(night_am_start); night_am_end.setHours(7, 0, 0, 0);
+    totalNightMins += getIntersectionMins(workStart, workEnd, night_am_start, night_am_end);
+
+    // 處理純當日 00:00 - 07:00 (例如 02:00-05:00)
+    // 由於我們將日期設為 2000-01-01，如果 workStart < 07:00 且 workEnd 不跨日，它應被視為當天的凌晨時段。
+    if (workStart.getHours() < 7 && workEnd.getDate() === workStart.getDate()) {
+        let day_early_start = new Date(workStart); day_early_start.setHours(0, 0, 0, 0);
+        let day_early_end = new Date(day_early_start); day_early_end.setHours(7, 0, 0, 0);
+        // 為了避免重複計算，這裡直接重新計算並覆蓋 totalNightMins (因為單日凌晨工作不可能跨越 23:00-24:00)
+        totalNightMins = getIntersectionMins(workStart, workEnd, day_early_start, day_early_end);
     }
 
-
+    nightWorkMins = totalNightMins;
+    
     // 避免夜間工時超過實際工時
     if (nightWorkMins > diffMins) nightWorkMins = diffMins;
     
