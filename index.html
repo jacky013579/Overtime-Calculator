@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>響應式工時計算機</title>
+    <title>搶修工時計算器</title>
     <style>
         /* == 基礎樣式 (Mobile-First / 手機版) == */
         body { font-family: 'Microsoft JhengHei', sans-serif; background-color: #f0f2f5; padding: 10px; }
@@ -28,7 +28,7 @@
             border: 1px solid #ccc; 
             border-radius: 8px; 
             font-size: 18px; 
-            box-sizing: border-box; /* 重要：防止 padding 撐大寬度 */
+            box-sizing: border-box;
         }
         
         button { 
@@ -41,71 +41,66 @@
             font-weight: bold; 
             transition: background 0.3s;
         }
-        .btn-blue { background-color: #007bff; color: white; }
-        .btn-green { background-color: #28a745; color: white; }
-        .btn-blue:hover { background-color: #0056b3; }
-        .btn-green:hover { background-color: #1e7e34; }
+        .btn-blue { background-color: #dc3545; color: white; }
+        .btn-green { background-color: #17a2b8; color: white; }
+        .btn-blue:hover { background-color: #bd2130; }
+        .btn-green:hover { background-color: #138496; }
 
-        .result-area { margin-top: 15px; padding: 15px; background-color: #e8f5e9; border: 1px solid #81c784; border-radius: 8px; display: none; text-align: center; }
+        .result-area { margin-top: 15px; padding: 15px; background-color: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; display: none; text-align: center; }
         .result-detail { text-align: left; font-size: 16px; line-height: 1.6; color: #333; }
-        .highlight-pay { color: #dc3545; font-weight: bold; font-size: 1.2em; }
-        .highlight-comp { color: #007bff; font-weight: bold; font-size: 1.2em; }
+        .highlight-range { color: #dc3545; font-weight: bold; font-size: 1.6em; }
+        .highlight-pay { color: #007bff; font-weight: bold; font-size: 1.2em; }
+        .highlight-comp { color: #28a745; font-weight: bold; font-size: 1.2em; }
 
         /* == 響應式佈局 (Media Query for Desktop) == */
         @media (min-width: 768px) {
-            .container {
-                max-width: 700px; /* 增加電腦版容器寬度 */
-            }
+            .container { max-width: 700px; }
             .input-group {
                 display: flex;
                 gap: 20px;
-                align-items: flex-start; /* 讓內容靠上對齊 */
+                align-items: flex-start;
             }
             .input-item {
-                flex-grow: 1; /* 讓每個輸入項佔據相等寬度 */
+                flex-grow: 1;
                 width: 50%;
             }
-            .input-item label, .input-item input {
-                width: 100%; /* 確保內部元素充滿空間 */
-            }
-            /* 電腦版按鈕可以變窄一點 */
-            button {
-                margin-top: 10px; 
-                width: 100%;
-            }
+            .input-item label, .input-item input { width: 100%; }
+            button { margin-top: 10px; width: 100%; }
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>⏰ 響應式工時計算機</h2>
-    <p style="text-align: center; font-size: 14px; color: #888;">螢幕寬時欄位並排，螢幕窄時欄位堆疊。</p>
+    <h2>⚡ 搶修工時計算器</h2>
+    <p style="text-align: center; font-size: 14px; color: #888;">適用手機與電腦，時間以 24 小時制輸入。</p>
 
     <div class="section">
-        <span class="section-title" style="color: #0056b3;">1. 計算最晚下班時間</span>
+        <span class="section-title" style="color: #dc3545;">1. 預估下班時間範圍</span>
+        <p style="font-size: 12px; color: #888; margin-bottom: 15px;">根據您的「上班時間 + 工作時數 (8 小時)」計算。</p>
+
         <div class="input-group">
             <div class="input-item">
                 <label>上班打卡時間：</label>
                 <input type="time" id="startTime">
             </div>
             <div class="input-item">
-                <label>工作時數 (預設12)：</label>
-                <input type="number" id="workHours" value="12">
+                <label>工作時數 (預設8)：</label>
+                <input type="number" id="workHours" value="8">
             </div>
         </div>
         
-        <button onclick="runLeave()" class="btn-blue">計算下班時間</button>
+        <button onclick="runLeave()" class="btn-blue">計算預估範圍</button>
         
         <div id="leaveRes" class="result-area">
-            最晚下班時間：
-            <div style="font-size: 24px; font-weight: bold; color: #007bff;" id="leaveTimeDisplay">--:--</div>
+            預估下班時間範圍：
+            <div class="highlight-range" id="leaveTimeDisplay">--:-- - --:--</div>
         </div>
     </div>
 
     <div class="section">
-        <span class="section-title" style="color: #28a745;">2. 加班與補休計算</span>
-        <p style="font-size: 12px; color: #888; margin-bottom: 15px;">補休僅計算 **23:00 - 07:00** 之間的夜間工時。</p>
+        <span class="section-title" style="color: #17a2b8;">2. 加班與補休計算</span>
+        <p style="font-size: 12px; color: #888; margin-bottom: 15px;">補休僅計算 23:00 - 07:00 之間的夜間工時，採 2 小時級距。</p>
         
         <div class="input-group">
             <div class="input-item">
@@ -120,10 +115,10 @@
 
         <button onclick="runOT()" class="btn-green">計算時數</button>
 
-        <div id="otRes" class="result-area">
+        <div id="otRes" class="result-area" style="background-color: #e6f7ff; border: 1px solid #91d5ff;">
              <div class="result-detail">
                 實際總時長：<span id="txtTime" style="font-weight: bold;"></span><br>
-                實際夜間工時：<span id="txtNightTime" style="font-weight: bold;"></span>
+                實際夜間工時 (23:00-07:00)：<span id="txtNightTime" style="font-weight: bold;"></span>
                 <hr style="opacity: 0.3; margin: 10px 0;">
                 <div style="text-align: center;">
                     加班申報：<b class="highlight-pay" id="txtPay">0</b> 小時<br>
@@ -136,6 +131,13 @@
 
 <script>
 // === 核心邏輯（沿用上次的正確計算規則） ===
+
+// 通用函數：將 Date 物件轉換為 HH:MM 格式字串
+function formatTime(date) {
+    let h = date.getHours().toString().padStart(2, '0');
+    let m = date.getMinutes().toString().padStart(2, '0');
+    return `${h}:${m}`;
+}
 
 // 通用函數：計算兩段時間的重疊分鐘數
 function getIntersectionMins(startA, endA, startB, endB) {
@@ -150,28 +152,35 @@ function getIntersectionMins(startA, endA, startB, endB) {
     return 0;
 }
 
-// 1. 計算下班時間
+// 1. 計算預估下班時間範圍
 function runLeave() {
     let start = document.getElementById('startTime').value;
     let hrs = parseFloat(document.getElementById('workHours').value);
     
     if(!start || !hrs) {
         document.getElementById('leaveRes').style.display = 'block';
-        document.getElementById('leaveTimeDisplay').innerHTML = '<span style="color:red;">請輸入上班時間與時數！</span>';
+        document.getElementById('leaveTimeDisplay').innerHTML = '<span style="font-size:18px; color:red;">請輸入上班時間與時數！</span>';
         return;
     }
     
-    let d = new Date('2000-01-01T' + start);
-    let originalDate = d.getDate();
-    d.setMinutes(d.getMinutes() + hrs * 60);
+    // 基準日期
+    let originalDate = new Date('2000-01-01T' + start);
     
-    let h = d.getHours().toString().padStart(2,'0');
-    let m = d.getMinutes().toString().padStart(2,'0');
+    // 1. 計算最晚下班時間 (T_latest = T_in + Work Hours)
+    let d_latest = new Date('2000-01-01T' + start);
+    d_latest.setMinutes(d_latest.getMinutes() + hrs * 60);
+    let T_latest_str = formatTime(d_latest);
+
+    // 2. 計算最早下班時間 (T_earliest = T_latest - 59分鐘)
+    let d_earliest = new Date(d_latest); // 從最晚時間的日期物件複製
+    d_earliest.setMinutes(d_earliest.getMinutes() - 59);
+    let T_earliest_str = formatTime(d_earliest);
     
-    let nextDay = (d.getDate() > originalDate) ? '<span style="font-size:14px; color:gray;">(隔日) </span>' : '';
+    // 判斷是否跨日（以最晚時間判斷即可）
+    let nextDay = (d_latest.getDate() > originalDate.getDate()) ? '<span style="font-size:14px; color:gray;">(隔日) </span>' : '';
     
     document.getElementById('leaveRes').style.display = 'block';
-    document.getElementById('leaveTimeDisplay').innerHTML = `${nextDay}${h}:${m}`;
+    document.getElementById('leaveTimeDisplay').innerHTML = `${nextDay}${T_earliest_str} - ${T_latest_str}`;
 }
 
 // 2. 計算加班與補休
@@ -187,40 +196,47 @@ function runOT() {
     let d1 = new Date('2000-01-01T' + s);
     let d2 = new Date('2000-01-01T' + e);
     
-    if(d2 < d1) d2.setDate(d2.getDate() + 1); // 處理跨日
+    // 處理跨日
+    if(d2 < d1) d2.setDate(d2.getDate() + 1); 
 
     let diffMins = (d2 - d1) / 60000;
     if(diffMins <= 0) return alert('結束時間需晚於開始時間');
 
-    let realHours = diffMins / 60;
+    let realHours = diffMins / 60; // 總小時數 (含小數)
 
-    // --- 加班申報時數 ---
+    // --- 加班申報時數規則 ---
+    // 規則：未滿1算1，開頭2小時內以2小時計 (低消2小時，超過後無條件進位)
     let finalPay = 0;
     if (realHours <= 2) {
-        finalPay = 2; // 開頭2小時低消
+        finalPay = 2; 
     } else {
-        finalPay = Math.ceil(realHours); // 超過2小時無條件進位
+        finalPay = Math.ceil(realHours);
     }
     
-    // --- 補休時數 (僅計算 23:00 - 07:00 時段) ---
+    // --- 補休時數計算 (僅計算 23:00 - 07:00 時段) ---
     let nightWorkMins = 0;
-
-    // 區間 A: 當日晚間 (23:00 - 24:00/00:00)
+    
+    // 由於加班可能跨越兩天，我們需要檢查兩個夜間時段：
+    
+    // 1. 檢查當日夜間 (23:00 - 24:00/00:00)
     let night1Start = new Date(d1); night1Start.setHours(23, 0, 0, 0);
     let night1End = new Date(d1); night1End.setDate(night1End.getDate() + 1); night1End.setHours(0, 0, 0, 0);
     nightWorkMins += getIntersectionMins(d1, d2, night1Start, night1End);
 
-    // 區間 B: 隔日清晨 (00:00 - 07:00)
+    // 2. 檢查隔日清晨 (00:00 - 07:00)
     let night2Start = new Date(d1); night2Start.setDate(night2Start.getDate() + 1); night2Start.setHours(0, 0, 0, 0);
     let night2End = new Date(night2Start); night2End.setHours(7, 0, 0, 0);
     nightWorkMins += getIntersectionMins(d1, d2, night2Start, night2End);
     
-    let nightWorkHours = nightWorkMins / 60;
+    // 3. 如果加班時段跨越了多日，需檢查更多的 23:00-07:00 區間。
+    // 為了簡化，且加班通常不會超過 24 小時，上述兩個區間通常足夠。
+    
+    let nightWorkHours = nightWorkMins / 60; // 夜間實際工時 (含小數)
 
-    // 補休規則：2小時級距 (上限8小時)
+    // 補休規則：2小時級距 (0-2->2, 2-4->4, ...)
     let finalComp = 0;
     if (nightWorkHours > 0) {
-        if (nightWorkHours >= 8) {
+        if (nightWorkHours >= 8) { // 假設最高級距為 8 小時
              finalComp = 8;
         } else {
              finalComp = Math.ceil(nightWorkHours / 2) * 2;
