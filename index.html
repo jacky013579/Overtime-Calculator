@@ -6,7 +6,7 @@
     <title>搶修工時計算器</title>
     <style>
         /* == 基礎樣式 (Mobile-First) == */
-        body { font-family: 'Inter', 'Microsoft JhengHei', sans-serif; background-color: #f0f2f5; padding: 10px; }
+        body { font-family: 'Inter', 'Microsoft JhengHei', sans-serif; background-color: #f0f2f5; padding: 10px; transition: background-color 0.3s; }
         .container { 
             position: relative;
             max-width: 500px; 
@@ -15,10 +15,11 @@
             padding: 20px; 
             border-radius: 10px; 
             box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+            transition: background 0.3s, box-shadow 0.3s;
         }
-        h2 { text-align: center; color: #333; margin-bottom: 20px; border-bottom: 2px solid #ddd; padding-bottom: 10px; }
+        h2 { text-align: center; color: #333; margin-bottom: 20px; border-bottom: 2px solid #ddd; padding-bottom: 10px; transition: color 0.3s, border-color 0.3s; }
         
-        /* 時制切換按鈕樣式 - 已優化尺寸與位置 */
+        /* 時制切換按鈕樣式 */
         #format-toggle {
             position: absolute;
             top: 20px; 
@@ -30,62 +31,50 @@
             cursor: pointer;
             font-size: 13px; 
             font-weight: bold;
-            transition: background-color 0.3s;
+            transition: background-color 0.3s, color 0.3s, border-color 0.3s;
             z-index: 10;
         }
         #format-toggle:hover {
             background-color: #e2e6ea;
         }
 
-        .section { margin-bottom: 30px; padding: 15px; background: #fff; border: 1px solid #ddd; border-radius: 10px; position: relative; }
+        .section { margin-bottom: 30px; padding: 15px; background: #fff; border: 1px solid #ddd; border-radius: 10px; position: relative; transition: background 0.3s, border-color 0.3s; }
         
-        /* 區塊標題樣式 (現在是靜態標題) */
+        /* 區塊標題樣式 */
         .section-title { 
             font-size: 1.2em; 
             font-weight: bold; 
             margin-bottom: 15px; 
-            display: block; /* 確保佔據整行 */
+            display: block; 
         }
         
         /* 輸入欄位通用樣式 */
-        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; transition: color 0.3s; }
         input[type="tel"], input[type="number"] { 
             width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 8px; font-size: 18px; box-sizing: border-box;
-            text-align: center;
+            text-align: center; background-color: white; color: #333; transition: background-color 0.3s, color 0.3s, border-color 0.3s;
         }
         input[type="tel"]::placeholder {
             color: #aaa;
             font-style: italic;
         }
         
-        /* 按鈕容器與樣式調整 */
-        .action-bar {
-            text-align: right;
-            margin-bottom: 15px;
-            margin-top: -10px; 
-        }
+        /* 按鈕樣式 */
+        .action-bar { text-align: right; margin-bottom: 15px; margin-top: -10px; }
         button { 
-            padding: 10px 15px; 
-            border: none; 
-            border-radius: 8px; 
-            font-size: 14px; 
-            cursor: pointer; 
-            font-weight: bold; 
-            transition: background 0.3s, box-shadow 0.3s;
-            display: inline-block;
-            width: auto; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 10px 15px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: bold; 
+            transition: background 0.3s, box-shadow 0.3s; display: inline-block; width: auto; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         .btn-blue { background-color: #dc3545; color: white; }
         .btn-green { background-color: #17a2b8; color: white; }
         .btn-blue:hover { background-color: #bd2130; box-shadow: 0 4px 6px rgba(0,0,0,0.15); }
         .btn-green:hover { background-color: #138496; box-shadow: 0 4px 6px rgba(0,0,0,0.15); }
 
-        .result-area { margin-top: 15px; padding: 15px; border-radius: 8px; display: none; text-align: center; }
+        .result-area { margin-top: 15px; padding: 15px; border-radius: 8px; display: none; text-align: center; transition: background-color 0.3s, border-color 0.3s; }
         .ot-result-area { background-color: #e6f7ff; border: 1px solid #91d5ff; }
         .leave-result-area { background-color: #fff3cd; border: 1px solid #ffeeba; }
         
-        .result-detail { text-align: left; font-size: 16px; line-height: 1.6; color: #333; }
+        .result-detail { text-align: left; font-size: 16px; line-height: 1.6; color: #333; transition: color 0.3s; }
         .highlight-range { color: #dc3545; font-weight: bold; font-size: 1.6em; }
         .highlight-pay { color: #007bff; font-weight: bold; font-size: 1.2em; }
         .highlight-comp { color: #28a745; font-weight: bold; font-size: 1.2em; }
@@ -93,6 +82,60 @@
         /* 超時警示樣式 */
         .alert-red { color: #dc3545; font-weight: bold; font-size: 0.9em; margin-left: 10px; }
 
+
+        /* ==================================== */
+        /* 深色模式 (DARK MODE)       */
+        /* ==================================== */
+        body.dark-mode {
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+        body.dark-mode .container {
+            background: #1f1f1f;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        body.dark-mode h2 {
+            color: #ffffff;
+            border-bottom: 2px solid #333;
+        }
+        body.dark-mode p {
+            color: #ccc;
+        }
+        body.dark-mode label {
+            color: #bbb;
+        }
+        body.dark-mode input[type="tel"], 
+        body.dark-mode input[type="number"] {
+            background-color: #2c2c2c;
+            color: #e0e0e0;
+            border: 1px solid #444;
+        }
+        body.dark-mode input[type="tel"]::placeholder {
+            color: #888;
+        }
+        body.dark-mode .section {
+            background: #1f1f1f;
+            border: 1px solid #333;
+        }
+        body.dark-mode .ot-result-area { 
+            background-color: #2a353d; /* 深藍色背景 */
+            border: 1px solid #45677d; 
+        }
+        body.dark-mode .leave-result-area { 
+            background-color: #3b3a2a; /* 深黃色背景 */
+            border: 1px solid #6b6a4f; 
+        }
+        body.dark-mode .result-detail {
+            color: #e0e0e0; /* 結果區文字顏色 */
+        }
+        body.dark-mode #format-toggle {
+            background-color: #333;
+            color: #fff;
+            border: 1px solid #555;
+        }
+        body.dark-mode #format-toggle:hover {
+            background-color: #444;
+        }
 
         /* == 響應式佈局 (Media Query for Desktop) == */
         @media (min-width: 768px) {
@@ -111,7 +154,7 @@
     <button id="format-toggle" onclick="toggleTimeFormat()">切換時制</button>
 
     <h2>⚡ 搶修工時計算器</h2>
-    <p style="text-align: center; font-size: 14px; color: #888;">取消摺疊隱藏</p>
+    <p style="text-align: center; font-size: 14px; color: #888;">增加深色模式</p>
 
     <!-- 1. 加班與補休計算 -->
     <div class="section">
@@ -148,14 +191,12 @@
         </div>
     </div>
 
-    <!-- 2. 預估下班時間範圍 (現在預設展開) -->
+    <!-- 2. 預估下班時間範圍 (預設展開) -->
     <div class="section">
-        <!-- 標題不再是可點擊的 -->
         <span class="section-title" style="color: #dc3545;">
             2. 預估下班時間範圍
         </span>
 
-        <!-- 內容區塊，不再有折疊類別 -->
         <div id="leaveSectionContent" class="leave-section-content">
             <div class="action-bar">
                 <button onclick="runLeave()" class="btn-blue">計算預估範圍</button>
@@ -387,8 +428,57 @@ function toggleTimeFormat() {
     console.log(`時制已切換為 ${timeFormatPreference}。`);
 }
 
-// 頁面載入時執行
-window.onload = loadTimeFormatPreference;
+
+// === 自動深色模式邏輯 (Auto Dark Mode Logic) ===
+
+/**
+ * 檢查當前時間是否在夜間 (18:00 到 06:00)
+ * @returns {boolean}
+ */
+function isNightTime() {
+    const now = new Date();
+    const hour = now.getHours();
+    // 夜間定義：18:00 (含) 到 06:00 (不含)
+    return hour >= 18 || hour < 6;
+}
+
+/**
+ * 檢查系統是否偏好深色模式
+ * @returns {boolean}
+ */
+function isSystemDarkModePreferred() {
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+/**
+ * 根據時間和設備偏好自動應用主題
+ */
+function applyAutomaticTheme() {
+    const body = document.body;
+    // 如果是夜間 *或* 系統偏好深色模式，則啟用深色模式
+    const shouldBeDarkMode = isNightTime() || isSystemDarkModePreferred();
+    
+    if (shouldBeDarkMode) {
+        body.classList.add('dark-mode');
+    } else {
+        body.classList.remove('dark-mode');
+    }
+}
+
+// 監聽系統主題變化 (如果有支援)
+if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyAutomaticTheme);
+}
+
+
+// === 頁面載入時執行所有初始化 ===
+
+window.onload = function() {
+    // 1. 載入時間格式偏好
+    loadTimeFormatPreference(); 
+    // 2. 應用自動深色模式
+    applyAutomaticTheme();      
+};
 
 
 // === 1. 加班與補休計算 (runOT) ===
@@ -550,3 +640,4 @@ function runLeave() {
 </script>
 </body>
 </html>
+
