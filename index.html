@@ -18,17 +18,17 @@
         }
         h2 { text-align: center; color: #333; margin-bottom: 20px; border-bottom: 2px solid #ddd; padding-bottom: 10px; }
         
-        /* 時制切換按鈕樣式 */
+        /* 時制切換按鈕樣式 - 已優化尺寸與位置 */
         #format-toggle {
             position: absolute;
-            top: 20px; /* 向上移動 */
-            right: 15px; /* 靠右邊緣 */
-            padding: 6px 10px; /* 縮小內邊距 */
+            top: 20px; 
+            right: 15px; 
+            padding: 6px 10px; 
             border: 1px solid #ccc;
             border-radius: 5px;
             background-color: #f8f9fa;
             cursor: pointer;
-            font-size: 13px; /* 縮小字體 */
+            font-size: 13px; 
             font-weight: bold;
             transition: background-color 0.3s;
             z-index: 10;
@@ -39,27 +39,14 @@
 
         .section { margin-bottom: 30px; padding: 15px; background: #fff; border: 1px solid #ddd; border-radius: 10px; position: relative; }
         
-        /* 區塊標題樣式 (包含可點擊的折疊功能) */
+        /* 區塊標題樣式 (現在是靜態標題) */
         .section-title { 
             font-size: 1.2em; 
             font-weight: bold; 
             margin-bottom: 15px; 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center;
-            cursor: pointer; /* 讓使用者知道可以點擊 */
+            display: block; /* 確保佔據整行 */
         }
         
-        /* 箭頭樣式 */
-        .toggle-arrow {
-            transition: transform 0.3s;
-            font-size: 1.5em;
-            line-height: 1;
-        }
-        .rotated {
-            transform: rotate(90deg); /* 展開時旋轉箭頭 */
-        }
-
         /* 輸入欄位通用樣式 */
         label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
         input[type="tel"], input[type="number"] { 
@@ -106,16 +93,6 @@
         /* 超時警示樣式 */
         .alert-red { color: #dc3545; font-weight: bold; font-size: 0.9em; margin-left: 10px; }
 
-        /* 內容折疊容器 */
-        .collapsible-content {
-            overflow: hidden;
-            max-height: 0;
-            transition: max-height 0.4s ease-out;
-        }
-        .collapsible-content.expanded {
-            max-height: 500px; /* 夠大，確保內容能完全展開 */
-        }
-
 
         /* == 響應式佈局 (Media Query for Desktop) == */
         @media (min-width: 768px) {
@@ -134,11 +111,11 @@
     <button id="format-toggle" onclick="toggleTimeFormat()">切換時制</button>
 
     <h2>⚡ 搶修工時計算器</h2>
-    <p style="text-align: center; font-size: 14px; color: #888;">加班補修計算更改為第一項,並且預估下班時間隱藏</p>
+    <p style="text-align: center; font-size: 14px; color: #888;">取消摺疊隱藏</p>
 
-    <!-- 1. 加班與補休計算 (Moved to First) -->
+    <!-- 1. 加班與補休計算 -->
     <div class="section">
-        <span class="section-title" style="color: #17a2b8; cursor: default;">
+        <span class="section-title" style="color: #17a2b8;">
             1. 加班與補休計算
         </span>
         <div class="action-bar">
@@ -171,16 +148,15 @@
         </div>
     </div>
 
-    <!-- 2. 預估下班時間範圍 (Moved to Second & Collapsible) -->
+    <!-- 2. 預估下班時間範圍 (現在預設展開) -->
     <div class="section">
-        <!-- 可點擊的標題 -->
-        <div class="section-title" id="leaveSectionToggle" onclick="toggleLeaveSection()">
-            <span style="color: #dc3545;">2. 預估下班時間範圍 (點擊展開)</span>
-            <span id="leaveArrow" class="toggle-arrow">&gt;</span>
-        </div>
+        <!-- 標題不再是可點擊的 -->
+        <span class="section-title" style="color: #dc3545;">
+            2. 預估下班時間範圍
+        </span>
 
-        <!-- 折疊的內容區塊 -->
-        <div id="leaveSectionContent" class="collapsible-content">
+        <!-- 內容區塊，不再有折疊類別 -->
+        <div id="leaveSectionContent" class="leave-section-content">
             <div class="action-bar">
                 <button onclick="runLeave()" class="btn-blue">計算預估範圍</button>
             </div>
@@ -409,25 +385,6 @@ function toggleTimeFormat() {
     }
     
     console.log(`時制已切換為 ${timeFormatPreference}。`);
-}
-
-/**
- * 展開/收合「預估下班時間範圍」區塊
- */
-function toggleLeaveSection() {
-    const content = document.getElementById('leaveSectionContent');
-    const arrow = document.getElementById('leaveArrow');
-    const title = document.querySelector('#leaveSectionToggle span');
-    
-    if (content.classList.contains('expanded')) {
-        content.classList.remove('expanded');
-        arrow.classList.remove('rotated');
-        title.innerText = '2. 預估下班時間範圍 (點擊展開)';
-    } else {
-        content.classList.add('expanded');
-        arrow.classList.add('rotated');
-        title.innerText = '2. 預估下班時間範圍 (點擊收合)';
-    }
 }
 
 // 頁面載入時執行
