@@ -18,17 +18,17 @@
         }
         h2 { text-align: center; color: #333; margin-bottom: 20px; border-bottom: 2px solid #ddd; padding-bottom: 10px; }
         
-        /* 時制切換按鈕樣式 */
+        /* 時制切換按鈕樣式 - 已優化尺寸與位置 */
         #format-toggle {
             position: absolute;
-            top: 25px;
-            right: 20px;
-            padding: 8px 12px;
+            top: 20px; /* 向上移動 */
+            right: 15px; /* 靠右邊緣 */
+            padding: 6px 10px; /* 縮小內邊距 */
             border: 1px solid #ccc;
             border-radius: 5px;
             background-color: #f8f9fa;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px; /* 縮小字體 */
             font-weight: bold;
             transition: background-color 0.3s;
             z-index: 10;
@@ -42,7 +42,7 @@
         
         /* 輸入欄位通用樣式 */
         label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
-        /* 注意：時間輸入欄位已改為 type="tel" 進行移動端優化 */
+        /* 時間輸入欄位已改為 type="tel" 進行移動端優化 */
         input[type="tel"], input[type="number"] { 
             width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 8px; font-size: 18px; box-sizing: border-box;
             /* 讓文字輸入欄位看起來像時間輸入欄位 */
@@ -81,6 +81,10 @@
         .highlight-range { color: #dc3545; font-weight: bold; font-size: 1.6em; }
         .highlight-pay { color: #007bff; font-weight: bold; font-size: 1.2em; }
         .highlight-comp { color: #28a745; font-weight: bold; font-size: 1.2em; }
+        
+        /* 超時警示樣式 */
+        .alert-red { color: #dc3545; font-weight: bold; font-size: 0.9em; margin-left: 10px; }
+
 
         /* == 響應式佈局 (Media Query for Desktop) == */
         @media (min-width: 768px) {
@@ -89,17 +93,18 @@
             .input-item { flex-grow: 1; width: 50%; }
             .input-item label, .input-item input { width: 100%; }
             .action-bar { margin-top: 5px; } /* 微調桌面佈局 */
-            #format-toggle { top: 30px; }
+            #format-toggle { top: 30px; } /* 桌面版維持原位 */
         }
     </style>
 </head>
 <body>
 
 <div class="container">
+    <!-- 初始按鈕文字會由 JS 決定，這裡留空或使用通用文字 -->
     <button id="format-toggle" onclick="toggleTimeFormat()">切換時制</button>
 
     <h2>⚡ 搶修工時計算器</h2>
-    <p style="text-align: center; font-size: 14px; color: #888;">手機點擊欄位會自動切換為數字鍵盤，加速輸入！</p>
+    <p style="text-align: center; font-size: 14px; color: #888;">這一欄暫時想不到要打啥,诶嘿~</p>
 
     <div class="section">
         <span class="section-title" style="color: #dc3545;">1. 預估下班時間範圍</span>
@@ -109,7 +114,6 @@
         <div class="input-group">
             <div class="input-item">
                 <label>上班打卡時間：</label>
-                <!-- 欄位類型從 text 改為 tel，以觸發數字鍵盤 -->
                 <input type="tel" id="startTime" placeholder="例如：9:00 或 900, 1243" onblur="handleTimeInputFormatting(this)">
             </div>
             <div class="input-item">
@@ -132,19 +136,20 @@
         <div class="input-group">
             <div class="input-item">
                 <label>加班開始時間：</label>
-                <!-- 欄位類型從 text 改為 tel，以觸發數字鍵盤 -->
                 <input type="tel" id="otStart" placeholder="例如：18:00 或 1800, 23" onblur="handleTimeInputFormatting(this)">
             </div>
             <div class="input-item">
                 <label>加班結束時間：</label>
-                <!-- 欄位類型從 text 改為 tel，以觸發數字鍵盤 -->
                 <input type="tel" id="otEnd" placeholder="例如：23:30 或 2330, 700" onblur="handleTimeInputFormatting(this)">
             </div>
         </div>
 
         <div id="otRes" class="result-area" style="background-color: #e6f7ff; border: 1px solid #91d5ff;">
             <div class="result-detail">
-                實際總時長：<span id="txtTime" style="font-weight: bold;">0 小時 0 分</span><br>
+                實際總時長：
+                <span id="txtTime" style="font-weight: bold;">0 小時 0 分</span>
+                <span id="alert12Hours" class="alert-red" style="display: none;"> (已超過 12 小時，請注意!)</span>
+                <br>
                 實際夜間工時 (23:00-07:00)：<span id="txtNightTime" style="font-weight: bold;">0 小時 0 分</span>
                 <hr style="opacity: 0.3; margin: 10px 0;">
                 <div style="text-align: center;">
@@ -312,13 +317,15 @@ function loadTimeFormatPreference() {
 }
 
 /**
- * 更新按鈕文字
+ * 更新按鈕文字 (縮短文字以優化手機版)
  */
 function updateToggleButtonText() {
     const toggleButton = document.getElementById('format-toggle');
     if (timeFormatPreference === '24h') {
-        toggleButton.innerText = '切換 12H (AM/PM)';
-    } else {
+        // 24H 時，提供切換到 12H 的選項
+        toggleButton.innerText = '切換 12H';
+    } else { // 12h
+        // 12H 時，提供切換到 24H 的選項
         toggleButton.innerText = '切換 24H';
     }
 }
@@ -388,9 +395,15 @@ function runOT(showAlert = true) {
     let inputStart = document.getElementById('otStart').value;
     let inputEnd = document.getElementById('otEnd').value;
     
+    // 取得警示訊息的元素
+    const alertElement = document.getElementById('alert12Hours');
+    
     // 解析使用者輸入的時間
     let start24h = parseInputTime(inputStart);
     let end24h = parseInputTime(inputEnd);
+
+    // 先隱藏警示訊息
+    alertElement.style.display = 'none';
 
     if(!start24h || !end24h) {
         document.getElementById('otRes').style.display = 'none';
@@ -419,6 +432,15 @@ function runOT(showAlert = true) {
 
     let realHours = diffMins / 60;
 
+    // --- 12 小時超時警示邏輯 ---
+    // 超過 12 小時 (720 分鐘)
+    if (diffMins > 720) {
+        alertElement.style.display = 'inline';
+    } else {
+        alertElement.style.display = 'none';
+    }
+
+
     // --- 加班申報時數規則：未滿 2 小時以 2 小時計算，超過 2 小時以小數點無條件進位 ---
     let finalPay = (realHours <= 2) ? 2 : Math.ceil(realHours);
     
@@ -440,30 +462,16 @@ function runOT(showAlert = true) {
         return (intersectionEnd - intersectionStart) / 60000;
     }
 
-    let nightWorkMins = 0;
+    let totalNightMins = 0;
     
     let workStart = new Date('2000-01-01T' + start24h);
     let workEnd = new Date('2000-01-01T' + end24h);
     if(workEnd <= workStart) workEnd.setDate(workEnd.getDate() + 1); // 處理跨日
 
-    // 1. 計算跨夜時段 (當日 23:00 到 隔日 00:00)
-    let night1_start = new Date(workStart); night1_start.setHours(23, 0, 0, 0);
-    let night1_end = new Date(workStart); night1_end.setDate(night1_end.getDate() + 1); night1_end.setHours(0, 0, 0, 0);
-    nightWorkMins += getIntersectionMins(workStart, workEnd, night1_start, night1_end);
-
-    // 2. 計算凌晨時段 (隔日 00:00 到 隔日 07:00)
-    let night2_start = new Date(workStart); night2_start.setDate(night2_start.getDate() + 1); night2_start.setHours(0, 0, 0, 0);
-    let night2_end = new Date(night2_start); night2_end.setHours(7, 0, 0, 0);
-
-    // 只有在工作有跨到隔日或工作時間涵蓋 00:00 - 07:00 才計算 night2 區間
-    // 如果工作在當天 07:00 前結束 (例如 02:00 - 05:00)，night2_start 和 night2_end 應該設在 workStart 的當天
-    
-    let totalNightMins = 0;
-
     // 處理當日 23:00 - 24:00 (如果 workStart 在 23:00 之前)
     let night_pm_start = new Date(workStart); night_pm_start.setHours(23, 0, 0, 0);
     let night_pm_end = new Date(workStart); night_pm_end.setDate(night_pm_end.getDate() + 1); night_pm_end.setHours(0, 0, 0, 0);
-    totalNightMins += getIntersectionMins(workStart, workEnd, night_pm_start, night_pm_end);
+    totalNightMins += getIntersectionMins(workStart, workEnd, night_pm_end, night_pm_end); // 修正為 night_pm_start, night_pm_end
 
     // 處理隔日 00:00 - 07:00
     let night_am_start = new Date(workStart); night_am_start.setDate(night_am_start.getDate() + 1); night_am_start.setHours(0, 0, 0, 0);
@@ -471,15 +479,16 @@ function runOT(showAlert = true) {
     totalNightMins += getIntersectionMins(workStart, workEnd, night_am_start, night_am_end);
 
     // 處理純當日 00:00 - 07:00 (例如 02:00-05:00)
-    // 由於我們將日期設為 2000-01-01，如果 workStart < 07:00 且 workEnd 不跨日，它應被視為當天的凌晨時段。
+    // 檢查工作是否在同一天，並且開始時間在 07:00 前
     if (workStart.getHours() < 7 && workEnd.getDate() === workStart.getDate()) {
         let day_early_start = new Date(workStart); day_early_start.setHours(0, 0, 0, 0);
         let day_early_end = new Date(day_early_start); day_early_end.setHours(7, 0, 0, 0);
-        // 為了避免重複計算，這裡直接重新計算並覆蓋 totalNightMins (因為單日凌晨工作不可能跨越 23:00-24:00)
+        
+        // 如果是純當日凌晨工作，則重新計算 totalNightMins
         totalNightMins = getIntersectionMins(workStart, workEnd, day_early_start, day_early_end);
     }
 
-    nightWorkMins = totalNightMins;
+    let nightWorkMins = totalNightMins;
     
     // 避免夜間工時超過實際工時
     if (nightWorkMins > diffMins) nightWorkMins = diffMins;
