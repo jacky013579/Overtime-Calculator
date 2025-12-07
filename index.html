@@ -75,12 +75,13 @@
         .leave-result-area { background-color: #fff3cd; border: 1px solid #ffeeba; }
         
         .result-detail { text-align: left; font-size: 16px; line-height: 1.6; color: #333; transition: color 0.3s; }
-        .highlight-range { color: #dc3545; font-weight: bold; font-size: 1.6em; }
+        .highlight-range { color: #dc3545; font-weight: bold; font-size: 1.4em; }
         .highlight-pay { color: #007bff; font-weight: bold; font-size: 1.2em; }
         .highlight-comp { color: #28a745; font-weight: bold; font-size: 1.2em; }
         
         /* 超時警示樣式 */
         .alert-red { color: #dc3545; font-weight: bold; font-size: 0.9em; margin-left: 10px; }
+        .elapsed-time { font-size: 1.1em; font-weight: bold; color: #17a2b8; margin-bottom: 10px; }
 
 
         /* ==================================== */
@@ -136,6 +137,10 @@
         body.dark-mode #format-toggle:hover {
             background-color: #444;
         }
+        body.dark-mode .elapsed-time {
+            color: #4dc3e5; /* 藍綠色 */
+        }
+
 
         /* == 響應式佈局 (Media Query for Desktop) == */
         @media (min-width: 768px) {
@@ -154,12 +159,15 @@
     <button id="format-toggle" onclick="toggleTimeFormat()">切換時制</button>
 
     <h2>⚡ 搶修工時計算器</h2>
-    <p style="text-align: center; font-size: 14px; color: #888;">增加暗黑模式！</p>
+    <p style="text-align: center; font-size: 14px; color: #888;">
+        加班申報規則：未滿 2H 以 2H 計，超過 2H 以整數小時進位。<br>
+        補休規則：23:00-07:00 時段，分級計算補休時數。
+    </p>
 
-    <!-- 1. 加班與補休計算 -->
+    <!-- 1. 加班與補休計算 (手動輸入區間) -->
     <div class="section">
         <span class="section-title" style="color: #17a2b8;">
-            1. 加班與補休計算
+            1. 加班與補休計算 (手動區間)
         </span>
         <div class="action-bar">
             <button onclick="runOT()" class="btn-green">計算時數</button>
@@ -191,26 +199,33 @@
         </div>
     </div>
 
-    <!-- 2. 預估下班時間範圍 (預設展開) -->
+    <!-- 2. 預估下班時間範圍 (即時浮動工時) -->
     <div class="section">
         <span class="section-title" style="color: #dc3545;">
-            2. 預估下班時間範圍
+            2. 預估下班時間範圍 (參照系統時間)
         </span>
 
         <div id="leaveSectionContent" class="leave-section-content">
-            <div class="action-bar">
-                <button onclick="runLeave()" class="btn-blue">計算預估範圍</button>
-            </div>
             <div class="input-group">
-                <div class="input-item">
+                <div class="input-item" style="flex-grow: 2;">
                     <label>上班打卡時間：</label>
-                    <input type="tel" id="startTime" placeholder="例如 9:30 或 930" onblur="handleTimeInputFormatting(this)">
+                    <input type="tel" id="startTime" placeholder="例如 7:30" 
+                        onblur="handleTimeInputFormatting(this); updateFloatingWorkState()">
                 </div>
-                <div class="input-item">
-                    <label>工作時數 (預設8)：</label>
-                    <!-- 已調整：使用 inputmode="decimal" 確保行動裝置顯示數字鍵盤且支援小數點 -->
-                    <input type="number" id="workHours" value="8" step="0.5" inputmode="decimal">
+                <!-- 這個欄位現在用於顯示計算出的申報工時，但用戶仍可手動調整進行試算 -->
+                <div class="input-item" style="flex-grow: 1;">
+                    <label>當前申報工時：</label>
+                    <input type="number" id="workHours" value="0" step="1" inputmode="decimal" readonly>
                 </div>
+            </div>
+
+            <!-- 新增顯示目前已工作時長 -->
+            <div id="elapsedTimeDisplay" class="elapsed-time" style="text-align: center; display: none;">
+                您目前實際工作：<span id="currentElapsed" style="font-size: 1.2em;">0 小時 0 分</span>
+            </div>
+
+            <div class="action-bar">
+                <button onclick="updateFloatingWorkState()" class="btn-blue">刷新計算</button>
             </div>
             
             <div id="leaveRes" class="result-area leave-result-area">
@@ -276,7 +291,7 @@ function formatTime(date, format) {
 
 /**
  * 解析使用者輸入的時間字串，支援 24H 和 12H (AM/PM) 格式。
- * @param {string} timeString - 使用者輸入的時間字串 (e.g., "9:00", "15:30", "3:30 PM")
+ * @param {string} timeString - 使用者輸入的時間字串
  * @returns {string|null} 24小時制 'HH:MM' 格式字串，或 null 如果解析失敗。
  */
 function parseInputTime(timeString) {
@@ -333,59 +348,43 @@ function parseInputTime(timeString) {
 }
 
 /**
- * 自動格式化數字時間輸入 (例如 23 -> 23:00, 1243 -> 12:43)
- * 此函式在 onblur (失去焦點) 時觸發。
- * @param {HTMLInputElement} inputElement - 欄位元素
+ * 自動格式化數字時間輸入
  */
 function handleTimeInputFormatting(inputElement) {
     let rawValue = inputElement.value.trim();
     if (!rawValue) return;
 
-    // 如果已經包含標準時間符號 (冒號、AM/PM)，則不做自動數字格式化
     if (rawValue.includes(':') || rawValue.toUpperCase().includes('AM') || rawValue.toUpperCase().includes('PM')) {
         return;
     }
     
-    // 僅保留數字
     let digits = rawValue.replace(/\D/g, ''); 
     let formattedTime = '';
 
     if (digits.length === 0) {
         return;
     } else if (digits.length <= 2) {
-        // 1 或 2 位數: 視為小時，補零後加 ':00'。例如 9 -> 09:00, 23 -> 23:00
         formattedTime = digits.padStart(2, '0') + ':00';
     } else if (digits.length === 3) {
-        // 3 位數: 視為 HMM，例如 730 -> 07:30
         formattedTime = digits.slice(0, 1).padStart(2, '0') + ':' + digits.slice(1);
     } else if (digits.length >= 4) {
-        // 4 位數或以上: 視為 HHMM，例如 1243 -> 12:43 (取前四位)
         formattedTime = digits.slice(0, 2) + ':' + digits.slice(2, 4);
     } else {
         return;
     }
 
-    // 檢查格式化後的時間是否有效 (00:00 - 23:59)
     const [hStr, mStr] = formattedTime.split(':');
     const h = parseInt(hStr, 10);
     const m = parseInt(mStr, 10);
 
     if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
-        // 有效時間，更新輸入欄位的值
         inputElement.value = formattedTime;
-    } else {
-        // 無效時間 (例如 25:00 或 12:65)
-        // 保持原始輸入，讓 parseInputTime 在計算時報錯
-        console.warn(`無效的時間輸入，已跳過格式化: ${rawValue}`);
     }
 }
 
 
 // === UI 與時制切換邏輯 ===
 
-/**
- * 載入時制偏好並設定初始狀態
- */
 function loadTimeFormatPreference() {
     const savedFormat = getCookie('timeFormat');
     if (savedFormat) {
@@ -394,69 +393,46 @@ function loadTimeFormatPreference() {
     updateToggleButtonText();
 }
 
-/**
- * 更新按鈕文字 (縮短文字以優化手機版)
- */
 function updateToggleButtonText() {
     const toggleButton = document.getElementById('format-toggle');
     if (timeFormatPreference === '24h') {
         toggleButton.innerText = '切換 12H';
-    } else { // 12h
+    } else { 
         toggleButton.innerText = '切換 24H';
     }
 }
 
-/**
- * 切換時制並儲存偏好
- */
 function toggleTimeFormat() {
     timeFormatPreference = (timeFormatPreference === '24h') ? '12h' : '24h';
-    setCookie('timeFormat', timeFormatPreference, 365); // 儲存 365 天
+    setCookie('timeFormat', timeFormatPreference, 365);
     updateToggleButtonText();
     
-    // 重新計算並更新現有結果，以切換顯示格式
     const leaveRes = document.getElementById('leaveRes');
     const otRes = document.getElementById('otRes');
     
-    // 如果結果區塊是顯示狀態，則重新計算以更新格式
     if (leaveRes.style.display === 'block') {
-        runLeave(); 
+        // 重新計算，確保格式切換
+        updateFloatingWorkState(); 
     }
     if (otRes.style.display === 'block') {
-        runOT(false); // 重新跑OT計算，但不顯示alert
+        runOT(false); // 重新跑OT計算，更新格式
     }
-    
-    console.log(`時制已切換為 ${timeFormatPreference}。`);
 }
 
+// === 自動深色模式邏輯 ===
 
-// === 自動深色模式邏輯 (Auto Dark Mode Logic) ===
-
-/**
- * 檢查當前時間是否在夜間 (18:00 到 06:00)
- * @returns {boolean}
- */
 function isNightTime() {
     const now = new Date();
     const hour = now.getHours();
-    // 夜間定義：18:00 (含) 到 06:00 (不含)
     return hour >= 18 || hour < 6;
 }
 
-/**
- * 檢查系統是否偏好深色模式
- * @returns {boolean}
- */
 function isSystemDarkModePreferred() {
     return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
-/**
- * 根據時間和設備偏好自動應用主題
- */
 function applyAutomaticTheme() {
     const body = document.body;
-    // 如果是夜間 *或* 系統偏好深色模式，則啟用深色模式
     const shouldBeDarkMode = isNightTime() || isSystemDarkModePreferred();
     
     if (shouldBeDarkMode) {
@@ -466,30 +442,15 @@ function applyAutomaticTheme() {
     }
 }
 
-// 監聽系統主題變化 (如果有支援)
 if (window.matchMedia) {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyAutomaticTheme);
 }
 
 
-// === 頁面載入時執行所有初始化 ===
-
-window.onload = function() {
-    // 1. 載入時間格式偏好
-    loadTimeFormatPreference(); 
-    // 2. 應用自動深色模式
-    applyAutomaticTheme();      
-};
-
-
-// === 1. 加班與補休計算 (runOT) ===
+// === 1. 加班與補休計算 (runOT) - 適用於手動區間輸入 ===
 
 /**
  * 計算兩個時間區間的交集分鐘數
- * @param {Date} aStart - 實際工作的開始時間
- * @param {Date} aEnd - 實際工作的結束時間
- * @param {Date} bStart - 夜間時段的開始時間
- * @param {Date} bEnd - 夜間時段的結束時間
  */
 function getIntersectionMins(aStart, aEnd, bStart, bEnd) {
     const intersectionStart = new Date(Math.max(aStart.getTime(), bStart.getTime()));
@@ -497,6 +458,33 @@ function getIntersectionMins(aStart, aEnd, bStart, bEnd) {
 
     if (intersectionStart >= intersectionEnd) return 0;
     return (intersectionEnd - intersectionStart) / 60000;
+}
+
+/**
+ * 根據申報工時規則計算最終申報小時數
+ * @param {number} realHours - 實際工作小時數 (含小數)
+ * @returns {number} 申報小時數 (整數)
+ */
+function calculateClaimHours(realHours) {
+    let finalPay;
+    if (realHours <= 2) {
+        finalPay = 2; // 未滿 2 小時，算 2 小時
+    } else {
+        finalPay = Math.ceil(realHours); // 超過 2 小時，無條件進位到整數小時
+    }
+    return finalPay;
+}
+
+/**
+ * 根據新階梯式規則計算夜間補休小時數
+ * @param {number} nightWorkHours - 夜間實際工作小時數 (含小數)
+ * @returns {number} 補休小時數 (2, 4, 或 8)
+ */
+function calculateCompHours(nightWorkHours) {
+    if (nightWorkHours <= 0) return 0;
+    if (nightWorkHours <= 2) return 2;
+    if (nightWorkHours <= 4) return 4;
+    return 8; // 4 小時以上補休 8 小時
 }
 
 function runOT(showAlert = true) {
@@ -513,7 +501,7 @@ function runOT(showAlert = true) {
     if(!start24h || !end24h) {
         document.getElementById('otRes').style.display = 'none';
         if (showAlert) {
-            console.error('請輸入完整的開始與結束時間，並確保格式正確 (例如：18:30 或 6:30 PM)');
+            console.error('請輸入完整的開始與結束時間，並確保格式正確');
         }
         return;
     }
@@ -521,7 +509,6 @@ function runOT(showAlert = true) {
     let d1 = new Date('2000-01-01T' + start24h);
     let d2 = new Date('2000-01-01T' + end24h);
     
-    // 處理跨日情況 (結束時間早於開始時間，則視為隔日)
     if(d2 <= d1) d2.setDate(d2.getDate() + 1); 
 
     let diffMins = (d2 - d1) / 60000;
@@ -536,66 +523,44 @@ function runOT(showAlert = true) {
     let realHours = diffMins / 60;
 
     // 12 小時超時警示邏輯
-    if (diffMins > 720) {
-        alertElement.style.display = 'inline';
-    } else {
-        alertElement.style.display = 'none';
-    }
+    alertElement.style.display = (diffMins > 720) ? 'inline' : 'none';
 
-
-    // 加班申報時數規則：未滿 2 小時以 2 小時計算，超過 2 小時以小數點無條件進位
-    let finalPay = (realHours <= 2) ? 2 : Math.ceil(realHours);
+    // 申報工時
+    let finalPay = calculateClaimHours(realHours);
     
-    
-    // --- 補休時數計算 (23:00 - 07:00 時段) ---
-    
+    // 補休時數計算 (23:00 - 07:00 時段)
     let totalNightMins = 0;
     
     let workStart = new Date('2000-01-01T' + start24h);
     let workEnd = new Date('2000-01-01T' + end24h);
-    if(workEnd <= workStart) workEnd.setDate(workEnd.getDate() + 1); // 處理跨日
+    if(workEnd <= workStart) workEnd.setDate(workEnd.getDate() + 1); 
 
-    // 1. 處理當日 23:00 - 24:00 (如果 workStart 在 23:00 之前)
-    let night_pm_start = new Date(workStart); night_pm_start.setHours(23, 0, 0, 0);
-    let night_pm_end = new Date(workStart); night_pm_end.setDate(night_pm_end.getDate() + 1); night_pm_end.setHours(0, 0, 0, 0);
-    totalNightMins += getIntersectionMins(workStart, workEnd, night_pm_start, night_pm_end);
+    // 處理夜間時段 (23:00-24:00 + 00:00-07:00)
+    // 建立夜間時段的參考時間點 (必須跨日處理)
+    const nightPeriods = [
+        // 當日 23:00 - 隔日 00:00
+        { start: new Date(workStart.getFullYear(), workStart.getMonth(), workStart.getDate(), 23, 0, 0), 
+          end: new Date(workStart.getFullYear(), workStart.getMonth(), workStart.getDate() + 1, 0, 0, 0) },
+        // 隔日 00:00 - 隔日 07:00
+        { start: new Date(workStart.getFullYear(), workStart.getMonth(), workStart.getDate() + 1, 0, 0, 0), 
+          end: new Date(workStart.getFullYear(), workStart.getMonth(), workStart.getDate() + 1, 7, 0, 0) }
+    ];
 
-    // 2. 處理隔日 00:00 - 07:00
-    let night_am_start = new Date(workStart); night_am_start.setDate(night_am_start.getDate() + 1); night_am_start.setHours(0, 0, 0, 0);
-    let night_am_end = new Date(night_am_start); night_am_end.setHours(7, 0, 0, 0);
-    totalNightMins += getIntersectionMins(workStart, workEnd, night_am_start, night_am_end);
-
-    // 3. 處理純當日 00:00 - 07:00 (例如 02:00-05:00)
-    // 檢查工作是否在同一天，並且開始時間在 07:00 前
-    if (workStart.getHours() < 7 && workEnd.getDate() === workStart.getDate()) {
-        let day_early_start = new Date(workStart); day_early_start.setHours(0, 0, 0, 0);
-        let day_early_end = new Date(day_early_start); day_early_end.setHours(7, 0, 0, 0);
-        
-        // 如果是純當日凌晨工作，則以該區間計算
-        totalNightMins = getIntersectionMins(workStart, workEnd, day_early_start, day_early_end);
+    for (const period of nightPeriods) {
+        totalNightMins += getIntersectionMins(workStart, workEnd, period.start, period.end);
     }
     
     let nightWorkMins = totalNightMins;
-    
-    // 避免夜間工時超過實際工時
-    if (nightWorkMins > diffMins) nightWorkMins = diffMins;
+    if (nightWorkMins > diffMins) nightWorkMins = diffMins; // 避免超過實際工時
     
     let nightWorkHours = nightWorkMins / 60;
-
-    // 補休規則：未滿 2 小時以 2 小時計算，超過 2 小時以 2 小時為單位無條件進位，上限 8 小時
-    let finalComp = 0;
-    if (nightWorkHours > 0) {
-        // 先計算向上取整到 2 的倍數 (例如 3小時 -> 4小時, 5小時 -> 6小時)
-        let roundedHours = Math.ceil(nightWorkHours / 2) * 2;
-        // 再限制上限為 8 小時
-        finalComp = Math.min(roundedHours, 8);
-    }
+    let finalComp = calculateCompHours(nightWorkHours);
     
     // 輸出格式化
     let displayH = Math.floor(diffMins / 60);
-    let displayM = diffMins % 60;
+    let displayM = Math.round(diffMins % 60);
     let nightDisplayH = Math.floor(nightWorkMins / 60);
-    let nightDisplayM = Math.round(nightWorkMins % 60); // 四捨五入分鐘
+    let nightDisplayM = Math.round(nightWorkMins % 60); 
 
     document.getElementById('otRes').style.display = 'block';
     document.getElementById('txtTime').innerText = `${displayH} 小時 ${displayM} 分`;
@@ -604,40 +569,127 @@ function runOT(showAlert = true) {
     document.getElementById('txtComp').innerText = finalComp;
 }
 
+// === 2. 預估下班時間範圍 (即時浮動工時) ===
 
-// === 2. 預估下班時間範圍 (runLeave) ===
-
-function runLeave() {
-    let inputTime = document.getElementById('startTime').value;
-    let hrs = parseFloat(document.getElementById('workHours').value);
+/**
+ * 處理「上班打卡時間」的 onblur/click 事件，自動計算已工作時長，更新申報工時欄位並觸發計算。
+ */
+function updateFloatingWorkState() {
+    const inputTime = document.getElementById('startTime').value;
+    const workHoursInput = document.getElementById('workHours');
+    const elapsedDisplay = document.getElementById('elapsedTimeDisplay');
+    const currentElapsedSpan = document.getElementById('currentElapsed');
     
-    // 解析使用者輸入的時間
     let start24h = parseInputTime(inputTime);
 
-    if(!start24h || !hrs) {
-        document.getElementById('leaveRes').style.display = 'block';
-        document.getElementById('leaveTimeDisplay').innerHTML = '<span style="font-size:18px; color:red;">請輸入正確的時間格式或工作時數！</span>';
+    if (!start24h) {
+        elapsedDisplay.style.display = 'none';
+        document.getElementById('leaveRes').style.display = 'none';
+        workHoursInput.value = 0; 
         return;
     }
     
-    // 使用解析後的 24H 格式時間進行計算
+    // 1. 獲取當前時間 (Now)
+    const now = new Date();
+    // 2. 為了計算時差，將上班時間設定在當前日期
+    let startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 
+                             parseInt(start24h.substring(0, 2), 10), 
+                             parseInt(start24h.substring(3, 5), 10), 0);
+    
+    // 如果上班時間比現在時間還晚，假設它是昨天 (處理跨日情形)
+    if (startTime > now) {
+        startTime.setDate(startTime.getDate() - 1);
+    }
+    
+    // 3. 計算總共經過的分鐘數 (無休息扣除)
+    let elapsedMins = (now - startTime) / 60000;
+    
+    if (elapsedMins < 0) {
+        elapsedDisplay.style.display = 'none';
+        document.getElementById('leaveRes').style.display = 'none';
+        workHoursInput.value = 0;
+        return;
+    }
+
+    // 4. 計算實際時數和申報工時
+    let realHours = elapsedMins / 60;
+    let roundedClaimHours = calculateClaimHours(realHours);
+
+    // 5. 更新顯示
+    let elapsedHours = Math.floor(elapsedMins / 60);
+    let elapsedMinutes = Math.round(elapsedMins % 60);
+
+    // 更新顯示欄位
+    workHoursInput.value = roundedClaimHours; // 設置申報小時數
+    currentElapsedSpan.innerText = `${elapsedHours} 小時 ${elapsedMinutes} 分`;
+    elapsedDisplay.style.display = 'block';
+    
+    // 6. 自動執行預估計算
+    runLeave(roundedClaimHours);
+}
+
+/**
+ * 執行預估下班時間範圍計算
+ * @param {number} claimHours - 申報工時 (從 updateFloatingWorkState 傳入)
+ */
+function runLeave(claimHours) {
+    let inputTime = document.getElementById('startTime').value;
+    // 取得申報工時 (以防用戶手動執行 runLeave)
+    let hrs = claimHours || parseFloat(document.getElementById('workHours').value);
+    
+    let start24h = parseInputTime(inputTime);
+
+    if(!start24h || isNaN(hrs) || hrs <= 0) {
+        document.getElementById('leaveRes').style.display = 'block';
+        document.getElementById('leaveTimeDisplay').innerHTML = '<span style="font-size:18px; color:red;">請輸入正確的時間格式或申報工時！</span>';
+        return;
+    }
+    
+    // 將上班時間設定在任意一個日期
     let originalDate = new Date('2000-01-01T' + start24h);
     
-    // 1. 計算最晚下班時間 (加上工時)
+    // 總時長 = 申報工時 (hrs * 60) 分鐘。
+    let totalDurationMins = (hrs * 60); 
+    
+    // 1. 計算最晚下班時間 (加上申報工時)
     let d_latest = new Date('2000-01-01T' + start24h);
-    d_latest.setMinutes(d_latest.getMinutes() + hrs * 60);
+    d_latest.setMinutes(d_latest.getMinutes() + totalDurationMins);
     let T_latest_str = formatTime(d_latest, timeFormatPreference);
 
-    // 2. 計算最早下班時間 (減去 59 分鐘，因為打卡時間到 T_latest_str 之間)
+    // 2. 計算最早下班時間 (減去 59 分鐘，得到範圍的開始點)
     let d_earliest = new Date(d_latest);
     d_earliest.setMinutes(d_earliest.getMinutes() - 59);
     let T_earliest_str = formatTime(d_earliest, timeFormatPreference);
     
+    // 檢查是否跨日
     let nextDay = (d_latest.getDate() > originalDate.getDate()) ? '<span style="font-size:14px; color:gray;">(隔日) </span>' : '';
     
+    // 輸出格式：[Earliest End Time] - [Latest End Time] (工作 [Rounded Hours] 小時)
     document.getElementById('leaveRes').style.display = 'block';
-    document.getElementById('leaveTimeDisplay').innerHTML = `${nextDay}${T_earliest_str} - ${T_latest_str}`;
+    document.getElementById('leaveTimeDisplay').innerHTML = `${nextDay}${T_earliest_str} - ${T_latest_str} (工作 ${hrs} 小時)`;
 }
+
+
+// === 頁面載入時執行所有初始化 ===
+
+window.onload = function() {
+    loadTimeFormatPreference(); 
+    applyAutomaticTheme();      
+    
+    // 每 30 秒刷新一次，確保即時工時計算貼近當前系統時間
+    // 注意：若用戶輸入了打卡時間，則啟用即時刷新
+    const startTimeInput = document.getElementById('startTime');
+    if (startTimeInput.value) {
+        updateFloatingWorkState();
+    }
+
+    setInterval(function() {
+        const startTimeInput = document.getElementById('startTime');
+        if (startTimeInput.value) {
+            updateFloatingWorkState();
+        }
+    }, 30000); // 30 秒
+};
 </script>
 </body>
 </html>
