@@ -87,10 +87,20 @@
         .cutoff-display {
             color: #007bff; 
             font-weight: bold; 
-            font-size: 1.2em;
+            font-size: 0.9em;
             display: block;
             margin-top: 5px;
         }
+
+        /* 預估補休顯示 */
+        .estimated-summary { 
+            font-size: 1.1em; 
+            font-weight: bold; 
+            color: #17a2b8; 
+            margin-bottom: 10px;
+        }
+        .estimated-summary .highlight-pay { color: #dc3545; }
+        .estimated-summary .highlight-comp { color: #007bff; }
 
 
         /* ==================================== */
@@ -149,6 +159,9 @@
         body.dark-mode .elapsed-time {
             color: #4dc3e5; /* 藍綠色 */
         }
+        body.dark-mode .estimated-summary {
+            color: #e0e0e0;
+        }
 
 
         /* == 響應式佈局 (Media Query for Desktop) == */
@@ -170,7 +183,7 @@
     <h2>⚡ 搶修工時計算器</h2>
     <p style="text-align: center; font-size: 14px; color: #888;">
         加班申報規則：未滿 2H 以 2H 計，超過 2H 以整數小時進位。<br>
-        補休規則：23:00-07:00 時段，分級計算補休時數。
+        補休規則：23:00-07:00 時段，分級計算補休時數 (2H/4H/8H)。
     </p>
 
     <!-- 1. 加班與補休計算 (手動輸入區間) -->
@@ -213,9 +226,8 @@
         <span class="section-title" style="color: #dc3545;">
             2. 預估下班時間範圍 (參照系統時間)
         </span>
-        <p style="font-size: 13px; color: #888; text-align: center; margin-top: -10px;">
-            <b style="color: #dc3545;">*週間搶修工時，預估下班時間最晚截止於下一個 08:00 AM。</b>
-        </p>
+        
+        <!-- 已刪除的文字說明：<p style="font-size: 13px; color: #888; text-align: center; margin-top: -10px;"><b style="color: #dc3545;">*預估下班時間僅依申報工時計算，無截止限制。</b></p> -->
 
         <div id="leaveSectionContent" class="leave-section-content">
             <div class="input-group">
@@ -224,7 +236,6 @@
                     <input type="tel" id="startTime" placeholder="例如 7:30" 
                         onblur="handleTimeInputFormatting(this); updateFloatingWorkState()">
                 </div>
-                <!-- 這個欄位現在用於顯示計算出的申報工時，但用戶仍可手動調整進行試算 -->
                 <div class="input-item" style="flex-grow: 1;">
                     <label>當前申報工時：</label>
                     <input type="number" id="workHours" value="0" step="1" inputmode="decimal" readonly>
@@ -241,9 +252,12 @@
             </div>
             
             <div id="leaveRes" class="result-area leave-result-area">
+                <div class="estimated-summary">
+                    預估申報：<b class="highlight-pay" id="estimatedPayHours">0</b> H / 補休：<b class="highlight-comp" id="estimatedCompHours">0</b> H
+                </div>
                 預估下班時間：
                 <div class="highlight-range" id="leaveTimeDisplay">--:--</div>
-                <div class="cutoff-display" id="cutoffMessage" style="display: none;"></div>
+                <div class="cutoff-display" id="cutoffMessage"></div>
             </div>
         </div>
     </div>
@@ -423,12 +437,10 @@ function toggleTimeFormat() {
     const leaveRes = document.getElementById('leaveRes');
     const otRes = document.getElementById('otRes');
     
-    if (leaveRes.style.display === 'block') {
-        // 重新計算，確保格式切換
-        updateFloatingWorkState(); 
-    }
+    // 重新計算，確保格式切換
+    updateFloatingWorkState(); 
     if (otRes.style.display === 'block') {
-        runOT(false); // 重新跑OT計算，更新格式
+        runOT(false); 
     }
 }
 
@@ -459,8 +471,7 @@ if (window.matchMedia) {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyAutomaticTheme);
 }
 
-
-// === 1. 加班與補休計算 (runOT) - 適用於手動區間輸入 (標準 23:00-07:00 規則) ===
+// === 共享計算邏輯 ===
 
 /**
  * 計算兩個時間區間的交集分鐘數
@@ -500,6 +511,59 @@ function calculateCompHours(nightWorkHours) {
     return 8; // 4 小時以上補休 8 小時
 }
 
+/**
+ * 計算給定工作區間的夜間 (23:00-07:00) 分鐘數與補休時數。
+ * @param {Date} workStart - 工作開始時間 (實際帶有日期)
+ * @param {Date} workEnd - 工作結束時間 (實際帶有日期)
+ * @returns {{nightMins: number, compHours: number}}
+ */
+function calculateNightComp(workStart, workEnd) {
+    if (workEnd <= workStart) return { nightMins: 0, compHours: 0 };
+    
+    const diffMins = (workEnd - workStart) / 60000;
+    const nightEndHour = 7; 
+    let totalNightMins = 0;
+    
+    // 檢查的三個夜間時段，涵蓋所有跨日/清晨情況：
+    let periodsToCheck = [];
+    
+    // 1. 當日 00:00 - 07:00 (處理 6:50 AM 打卡的情況)
+    let today = new Date(workStart);
+    periodsToCheck.push({
+        start: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0),
+        end: new Date(today.getFullYear(), today.getMonth(), today.getDate(), nightEndHour, 0, 0)
+    });
+    
+    // 2. 當日 23:00 - 隔日 07:00 (處理跨夜的情況)
+    let tomorrow = new Date(workStart);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    // 2a. 當日 23:00 - 隔日 00:00 
+    periodsToCheck.push({
+        start: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 0, 0),
+        end: new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), 0, 0, 0)
+    });
+    
+    // 2b. 隔日 00:00 - 隔日 07:00
+    periodsToCheck.push({
+        start: new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), 0, 0, 0),
+        end: new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), nightEndHour, 0, 0)
+    });
+    
+    for (const period of periodsToCheck) {
+        totalNightMins += getIntersectionMins(workStart, workEnd, period.start, period.end);
+    }
+    
+    // 雖然 intersection 已經是交集，但為了避免邏輯錯誤，確保不會超過實際總工時
+    if (totalNightMins > diffMins) totalNightMins = diffMins; 
+
+    let nightWorkHours = totalNightMins / 60;
+    let finalComp = calculateCompHours(nightWorkHours);
+
+    return { nightMins: totalNightMins, compHours: finalComp };
+}
+
+// === 1. 加班與補休計算 (runOT) - 適用於手動區間輸入 ===
 function runOT(showAlert = true) {
     let inputStart = document.getElementById('otStart').value;
     let inputEnd = document.getElementById('otEnd').value;
@@ -548,36 +612,14 @@ function runOT(showAlert = true) {
     // 申報工時
     let finalPay = calculateClaimHours(realHours);
     
-    
-    // 補休時數計算 (標準 23:00 - 07:00 時段)
-    const nightEndHour = 7; 
-
-    // 建立夜間時段的參考時間點
-    const nightPeriods = [
-        // 1. 當日 23:00 - 隔日 00:00
-        { start: new Date(workStart.getFullYear(), workStart.getMonth(), workStart.getDate(), 23, 0, 0), 
-          end: new Date(workStart.getFullYear(), workStart.getMonth(), workStart.getDate() + 1, 0, 0, 0) },
-        // 2. 隔日 00:00 - 隔日 07:00
-        { start: new Date(workStart.getFullYear(), workStart.getMonth(), workStart.getDate() + 1, 0, 0, 0), 
-          end: new Date(workStart.getFullYear(), workStart.getMonth(), workStart.getDate() + 1, nightEndHour, 0, 0) }
-    ];
-
-    let totalNightMins = 0;
-    for (const period of nightPeriods) {
-        totalNightMins += getIntersectionMins(workStart, workEnd, period.start, period.end);
-    }
-    
-    let nightWorkMins = totalNightMins;
-    if (nightWorkMins > diffMins) nightWorkMins = diffMins; // 避免超過實際工時
-    
-    let nightWorkHours = nightWorkMins / 60;
-    let finalComp = calculateCompHours(nightWorkHours);
+    // 補休時數計算 (使用共享函數)
+    const { nightMins, compHours: finalComp } = calculateNightComp(workStart, workEnd);
     
     // 輸出格式化
     let displayH = Math.floor(diffMins / 60);
     let displayM = Math.round(diffMins % 60);
-    let nightDisplayH = Math.floor(nightWorkMins / 60);
-    let nightDisplayM = Math.round(nightWorkMins % 60); 
+    let nightDisplayH = Math.floor(nightMins / 60);
+    let nightDisplayM = Math.round(nightMins % 60); 
 
     document.getElementById('otRes').style.display = 'block';
     document.getElementById('txtTime').innerText = `${displayH} 小時 ${displayM} 分`;
@@ -586,7 +628,7 @@ function runOT(showAlert = true) {
     document.getElementById('txtComp').innerText = finalComp;
 }
 
-// === 2. 預估下班時間範圍 (即時浮動工時) - 實施動態截止時間邏輯 (修正為當日 8:00 AM 截止) ===
+// === 2. 預估下班時間範圍 (即時浮動工時) - 移除硬截止時間邏輯 ===
 
 /**
  * 處理「上班打卡時間」的 onblur/click 事件，自動計算已工作時長，更新申報工時欄位並觸發計算。
@@ -602,6 +644,7 @@ function updateFloatingWorkState() {
     if (!start24h) {
         elapsedDisplay.style.display = 'none';
         document.getElementById('leaveRes').style.display = 'none';
+        document.getElementById('cutoffMessage').style.display = 'none';
         workHoursInput.value = 0; 
         return;
     }
@@ -618,51 +661,30 @@ function updateFloatingWorkState() {
         actualStart.setDate(actualStart.getDate() - 1);
     }
 
-    // 實際經過的總分鐘數 (uncapped)
+    // 實際經過的總分鐘數
     let elapsedMins = (now - actualStart) / 60000;
     
     if (elapsedMins < 0) {
         elapsedDisplay.style.display = 'none';
         document.getElementById('leaveRes').style.display = 'none';
+        document.getElementById('cutoffMessage').style.display = 'none';
         workHoursInput.value = 0;
         return;
     }
 
-    // 3. 判斷是否為週間 (Mon-Fri: 1-5) 決定截止時間
-    const startDayOfWeek = actualStart.getDay(); // 0=Sunday, 6=Saturday
-    let isWeekdayStart = startDayOfWeek >= 1 && startDayOfWeek <= 5; // Mon-Fri
-
-    // 4. 計算申報基礎分鐘數 (claimBaseMins) - 這是用於計算 rounding 的基礎
+    // 3. 申報工時的基礎分鐘數 (無截止限制，直接使用實際經過的時間)
     let claimBaseMins = elapsedMins;
-
-    if (isWeekdayStart) {
-        // 定義 8:00 AM (今天)
-        let today8am = new Date(actualStart);
-        today8am.setHours(8, 0, 0, 0);
-
-        // 決定硬截止時間點 (hardCutoffTime)：
-        let hardCutoffTime;
-        if (actualStart.getHours() < 8 && actualStart.getMinutes() < 60) {
-            // 情境 1: 搶修開始時間 (e.g., 6:50 AM) 在今天 8:00 AM 之前，截止點就是今天 8:00 AM。
-            hardCutoffTime = today8am;
-        } else {
-            // 情境 2: 搶修開始時間 (e.g., 10:00 PM 或 8:01 AM) 在今天 8:00 AM 之後，截止點是隔天 8:00 AM。
-            let tomorrow8am = new Date(actualStart);
-            tomorrow8am.setDate(tomorrow8am.getDate() + 1);
-            tomorrow8am.setHours(8, 0, 0, 0);
-            hardCutoffTime = tomorrow8am;
-        }
-
-        // 計算從開始時間到截止點的最大可申報分鐘數
-        let maxClaimMins = (hardCutoffTime - actualStart) / 60000;
-        
-        // claimBaseMins 取實際經過分鐘數 和 最大可申報分鐘數 的最小值
-        claimBaseMins = Math.min(elapsedMins, maxClaimMins);
-    }
     
-    // 5. 根據 claimBaseMins 計算申報工時
+    // 4. 根據 claimBaseMins 計算申報工時
     let realHours = claimBaseMins / 60;
     let roundedClaimHours = calculateClaimHours(realHours);
+    
+    // 5. 計算補休時數 (夜間工時截止點 = actualStart + claimBaseMins)
+    let workEndForClaim = new Date(actualStart);
+    workEndForClaim.setMinutes(workEndForClaim.getMinutes() + claimBaseMins);
+    
+    const { compHours: finalComp } = calculateNightComp(actualStart, workEndForClaim);
+
 
     // 6. 更新顯示
     let elapsedHours = Math.floor(elapsedMins / 60);
@@ -674,20 +696,24 @@ function updateFloatingWorkState() {
     elapsedDisplay.style.display = 'block';
     
     // 7. 自動執行預估計算
-    runLeave(roundedClaimHours, actualStart);
+    runLeave(roundedClaimHours, actualStart, finalComp);
 }
 
 /**
- * 執行預估下班時間範圍計算
+ * 執行預估下班時間範圍計算 (已移除 hardCutoffTime 參數)
  * @param {number} claimHours - 申報工時 
  * @param {Date} actualStart - 實際打卡開始時間 (帶有正確日期上下文)
+ * @param {number} finalComp - 預估的補休時數 (2, 4, 8)
  */
-function runLeave(claimHours, actualStart) {
+function runLeave(claimHours, actualStart, finalComp) {
     let hrs = claimHours;
-    document.getElementById('cutoffMessage').style.display = 'none';
     
-    let start24h = formatTime(actualStart, '24h');
+    // 更新頂部申報摘要
+    document.getElementById('estimatedPayHours').innerText = hrs;
+    document.getElementById('estimatedCompHours').innerText = finalComp;
+    
     // 使用 '2000-01-01' 作為基準日期，用於一致性的時間格式化
+    const start24h = formatTime(actualStart, '24h');
     let originalDate = new Date('2000-01-01T' + start24h); 
 
     // 總時長 = 申報工時 (hrs * 60) 分鐘。
@@ -697,66 +723,26 @@ function runLeave(claimHours, actualStart) {
     let d_latest = new Date(originalDate);
     d_latest.setMinutes(d_latest.getMinutes() + totalDurationMins);
     
-    // 2. 檢查週間截止點 (8:00 AM 隔日或當日)
-    const startDayOfWeek = actualStart.getDay(); // 0=Sunday, 6=Saturday
-    let isWeekdayStart = startDayOfWeek >= 1 && startDayOfWeek <= 5; // Mon-Fri
-
-    if (isWeekdayStart) {
-        // 定義 8:00 AM (今天)
-        let today8am = new Date(actualStart);
-        today8am.setHours(8, 0, 0, 0);
-
-        // 決定硬截止時間點 (hardCutoffTime)：
-        let hardCutoffTime;
-        if (actualStart.getHours() < 8 && actualStart.getMinutes() < 60) {
-            hardCutoffTime = today8am;
-        } else {
-            let tomorrow8am = new Date(actualStart);
-            tomorrow8am.setDate(tomorrow8am.getDate() + 1);
-            tomorrow8am.setHours(8, 0, 0, 0);
-            hardCutoffTime = tomorrow8am;
-        }
-
-        // 標準的最晚結束時間 (使用實際日期進行比較)
-        let claimedEndTime = new Date(actualStart);
-        claimedEndTime.setMinutes(claimedEndTime.getMinutes() + totalDurationMins);
-
-        // 如果計算出來的結束時間超過硬截止點
-        if (claimedEndTime.getTime() > hardCutoffTime.getTime()) {
-            
-            // 將顯示的最新時間強制設為 hardCutoffTime
-            let T_latest_str_c = formatTime(hardCutoffTime, timeFormatPreference);
-            
-            // 由於這時預估 end time 是一個單一確定的點 (截止點)，所以只顯示這個點
-            document.getElementById('leaveRes').style.display = 'block';
-            document.getElementById('leaveTimeDisplay').innerHTML = T_latest_str_c;
-            
-            // 判斷是否為隔日截止
-            let cutoffDayText = (hardCutoffTime.getDate() !== actualStart.getDate()) ? '隔日' : '當日';
-            
-            document.getElementById('cutoffMessage').style.display = 'block';
-            document.getElementById('cutoffMessage').innerHTML = `(申報 ${hrs} 小時 / 截止於 ${cutoffDayText} 08:00)`;
-            return;
-        }
-    }
-    
-    // --- 正常範圍計算 (未被 8:00 AM 截止點觸發時) ---
-    
-    let T_latest_str = formatTime(d_latest, timeFormatPreference);
-    
-    // 計算最早下班時間 (減去 59 分鐘，得到範圍的開始點)
+    // 2. 計算最早下班時間 (減去 59 分鐘，得到範圍的開始點)
     let d_earliest = new Date(d_latest);
     d_earliest.setMinutes(d_earliest.getMinutes() - 59);
+    
+    let T_latest_str = formatTime(d_latest, timeFormatPreference);
     let T_earliest_str = formatTime(d_earliest, timeFormatPreference);
     
     // 檢查是否跨日 (與原始打卡時間相比)
-    let nextDay = (d_latest.getDate() > originalDate.getDate()) ? '<span style="font-size:14px; color:gray;">(隔日) </span>' : '';
+    // 這裡我們必須使用實際日期進行判斷
+    let endCheckDate = new Date(actualStart);
+    endCheckDate.setMinutes(endCheckDate.getMinutes() + totalDurationMins);
+
+    let nextDay = (endCheckDate.getDate() !== actualStart.getDate()) ? '<span style="font-size:14px; color:gray;">(隔日) </span>' : '';
     
     // 輸出格式：[Earliest End Time] - [Latest End Time] (工作 [Rounded Hours] 小時)
     document.getElementById('leaveRes').style.display = 'block';
     document.getElementById('leaveTimeDisplay').innerHTML = `${nextDay}${T_earliest_str} - ${T_latest_str}`;
+    
     document.getElementById('cutoffMessage').style.display = 'block';
-    document.getElementById('cutoffMessage').innerHTML = `(申報 ${hrs} 小時)`;
+    document.getElementById('cutoffMessage').innerHTML = `(申報 ${hrs} 小時 / 補休 ${finalComp} 小時)`;
 }
 
 
