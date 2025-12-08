@@ -227,7 +227,7 @@
             2. 預估下班時間範圍 (參照系統時間)
         </span>
         <p style="font-size: 13px; color: #888; text-align: center; margin-top: -10px;">
-            <b style="color: #dc3545;">*週一至週五，下班時間最晚截止至隔日 08:00 AM。</b>
+            <b style="color: #dc3545;">*週間 (Mon-Fri) 截止點為搶修循環中的第一個 08:00 AM。</b>
         </p>
 
         <div id="leaveSectionContent" class="leave-section-content">
@@ -632,26 +632,30 @@ function runOT(showAlert = true) {
 // === 2. 預估下班時間範圍 (即時浮動工時) - 恢復截止邏輯 ===
 
 /**
- * 根據當前時間 (now) 計算下一個 08:00 AM 的截止時間點，但僅限於週間 (週一到週五)。
+ * 根據「上班打卡時間」和「當前系統時間」計算最近的 08:00 AM 截止點，但僅限於週間 (週一到週五)。
+ * 截止點必須在 actualStart 之後，且是下一個 8:00 AM。
+ * @param {Date} actualStart - 實際打卡開始時間 (帶有日期)
  * @param {Date} now - 當前系統時間
- * @returns {Date|null} 下一個 08:00 AM 的 Date 物件，或 null (如果是週末)
+ * @returns {Date|null} 有效的 08:00 AM 截止點，或 null (如果是週末)
  */
-function calculateCutoffTime(now) {
-    const currentDay = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+function calculateCutoffTime(actualStart, now) {
+    const currentDayOfWeek = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
 
     // 週末 (0=Sun, 6=Sat) 不適用此截止
-    if (currentDay === 0 || currentDay === 6) {
+    if (currentDayOfWeek === 0 || currentDayOfWeek === 6) {
         return null; 
     }
 
-    // 基準點：今天的 08:00 AM
-    let cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 0, 0);
+    // 1. 確定第一個 08:00 AM 截止點，以 actualStart 的日期為基準
+    let cutoff = new Date(actualStart);
+    cutoff.setHours(8, 0, 0, 0);
 
-    // 如果當前時間已經過了今天的 8:00 AM，則截止點是明天的 8:00 AM
-    if (now.getTime() >= cutoff.getTime()) {
+    // 2. 如果上班打卡時間在 08:00 AM 之後，則截止點會推到隔日 08:00 AM
+    if (actualStart.getTime() >= cutoff.getTime()) {
         cutoff.setDate(cutoff.getDate() + 1);
     }
     
+    // 此時，`cutoff` 就是該次搶修循環中，必須遵守的第一個 08:00 AM 截止點。
     return cutoff;
 }
 
@@ -698,21 +702,36 @@ function updateFloatingWorkState() {
         return;
     }
 
-    // 3. 申報工時的基礎分鐘數 (直接使用實際經過的時間)
+    // 3. 申報工時的基礎分鐘數
     let claimBaseMins = elapsedMins;
+
+    // 4. 檢查是否有 08:00 AM 截止限制，如果有，則申報時間不能超過截止時間
+    const hardCutoffTime = calculateCutoffTime(actualStart, now);
+    let cutoffApplied = false;
+
+    if (hardCutoffTime) {
+        const potentialEnd = new Date(actualStart);
+        potentialEnd.setMinutes(potentialEnd.getMinutes() + claimBaseMins);
+
+        // 如果當前實際工作時間已經超過截止時間
+        if (potentialEnd.getTime() > hardCutoffTime.getTime()) {
+            claimBaseMins = (hardCutoffTime - actualStart) / 60000;
+            cutoffApplied = true;
+        }
+    }
     
-    // 4. 根據 claimBaseMins 計算申報工時
+    // 5. 根據 claimBaseMins 計算申報工時 (截止後計算)
     let realHours = claimBaseMins / 60;
     let roundedClaimHours = calculateClaimHours(realHours);
     
-    // 5. 計算補休時數 (夜間工時截止點 = actualStart + claimBaseMins)
+    // 6. 計算補休時數 (夜間工時截止點 = actualStart + claimBaseMins)
     let workEndForClaim = new Date(actualStart);
     workEndForClaim.setMinutes(workEndForClaim.getMinutes() + claimBaseMins);
     
     const { compHours: finalComp } = calculateNightComp(actualStart, workEndForClaim);
 
 
-    // 6. 更新顯示
+    // 7. 更新顯示
     let elapsedHours = Math.floor(elapsedMins / 60);
     let elapsedMinutes = Math.round(elapsedMins % 60);
 
@@ -721,42 +740,49 @@ function updateFloatingWorkState() {
     currentElapsedSpan.innerText = `${elapsedHours} 小時 ${elapsedMinutes} 分`;
     elapsedDisplay.style.display = 'block';
     
-    // 7. 自動執行預估計算
-    runLeave(roundedClaimHours, actualStart, finalComp);
+    // 8. 自動執行預估計算
+    runLeave(roundedClaimHours, actualStart, finalComp, hardCutoffTime, cutoffApplied);
 }
 
 /**
- * 執行預估下班時間範圍計算 (已恢復週間 08:00 AM 截止限制)
+ * 執行預估下班時間範圍計算
  * @param {number} claimHours - 申報工時 
  * @param {Date} actualStart - 實際打卡開始時間 (帶有正確日期上下文)
  * @param {number} finalComp - 預估的補休時數 (2, 4, 8)
+ * @param {Date|null} hardCutoffTime - 應用的截止時間點
+ * @param {boolean} cutoffApplied - 是否被截止限制截斷
  */
-function runLeave(claimHours, actualStart, finalComp) {
+function runLeave(claimHours, actualStart, finalComp, hardCutoffTime, cutoffApplied) {
     let hrs = claimHours;
     
     // 更新頂部申報摘要
     document.getElementById('estimatedPayHours').innerText = hrs;
     document.getElementById('estimatedCompHours').innerText = finalComp;
-    
-    // 1. 計算標準的最晚下班時間 (加上申報工時)
-    let d_latest = new Date(actualStart);
-    let totalDurationMins = (hrs * 60); 
-    d_latest.setMinutes(d_latest.getMinutes() + totalDurationMins);
-    
-    // 2. 確定並應用週間截止時間
-    const now = new Date();
-    let hardCutoffTime = calculateCutoffTime(now);
-    let cutoffApplied = false;
 
-    if (hardCutoffTime) {
-        // 檢查截止：如果計算出的最晚下班時間超過了截止時間
-        if (d_latest.getTime() > hardCutoffTime.getTime()) {
-            d_latest = hardCutoffTime;
-            cutoffApplied = true;
-        }
+    // 1. **處理硬截止點覆蓋顯示 (依照使用者要求)**
+    if (cutoffApplied && hardCutoffTime) {
+        const T_cutoff_str = formatTime(hardCutoffTime, timeFormatPreference);
+        // 直接顯示截止時間，取代標準的 1 小時範圍
+        document.getElementById('leaveTimeDisplay').innerHTML = T_cutoff_str; 
+        
+        let cutoffMsg = `(申報 ${hrs} 小時 / 補休 ${finalComp} 小時)`;
+        cutoffMsg += `<br><span class="alert-red" style="font-size: 0.9em;">(週間截止限制已生效，工時鎖定於此時間點)</span>`;
+        document.getElementById('cutoffMessage').style.display = 'block';
+        document.getElementById('cutoffMessage').innerHTML = cutoffMsg;
+        document.getElementById('leaveRes').style.display = 'block';
+        return; // 顯示單一截止時間後退出
     }
     
-    // 3. 計算最早下班時間 (減去 59 分鐘，得到範圍的開始點)
+    // 2. 正常情況：計算標準範圍
+    
+    // 總時長 = 申報工時 (hrs * 60) 分鐘。
+    let totalDurationMins = (hrs * 60); 
+    
+    // 2a. 計算標準的最晚下班時間 (加上申報工時)
+    let d_latest = new Date(actualStart);
+    d_latest.setMinutes(d_latest.getMinutes() + totalDurationMins);
+    
+    // 2b. 計算最早下班時間 (減去 59 分鐘，得到範圍的開始點)
     let d_earliest = new Date(d_latest);
     d_earliest.setMinutes(d_earliest.getMinutes() - 59);
 
@@ -777,10 +803,8 @@ function runLeave(claimHours, actualStart, finalComp) {
     document.getElementById('leaveTimeDisplay').innerHTML = `${nextDay}${T_earliest_str} - ${T_latest_str}`;
     
     let cutoffMsg = `(申報 ${hrs} 小時 / 補休 ${finalComp} 小時)`;
-    if (cutoffApplied && hardCutoffTime) {
-        cutoffMsg += `<br><span class="alert-red" style="font-size: 0.9em;">(因週間限制，已截止於 ${formatTime(hardCutoffTime, timeFormatPreference)})</span>`;
-    }
-
+    
+    // 顯示訊息
     document.getElementById('cutoffMessage').style.display = 'block';
     document.getElementById('cutoffMessage').innerHTML = cutoffMsg;
 }
