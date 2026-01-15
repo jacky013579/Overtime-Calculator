@@ -2,832 +2,366 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>搶修工時計算器</title>
     <style>
-        /* == 基礎樣式 (Mobile-First) == */
-        body { font-family: 'Inter', 'Microsoft JhengHei', sans-serif; background-color: #f0f2f5; padding: 10px; transition: background-color 0.3s; }
+        /* == Base Styles == */
+        :root {
+            --primary-blue: #007bff;
+            --primary-red: #dc3545;
+            --primary-green: #28a745;
+            --bg-light: #f0f2f5;
+            --card-bg: #ffffff;
+            --text-main: #333333;
+            --text-muted: #666666;
+            --border-color: #dddddd;
+        }
+
+        body { 
+            font-family: 'Inter', 'Microsoft JhengHei', sans-serif; 
+            background-color: var(--bg-light); 
+            padding: 10px; 
+            margin: 0;
+            color: var(--text-main);
+            transition: background-color 0.3s, color 0.3s; 
+        }
+
         .container { 
             position: relative;
             max-width: 500px; 
-            margin: 20px auto; 
-            background: white; 
+            margin: 10px auto; 
+            background: var(--card-bg); 
             padding: 20px; 
-            border-radius: 10px; 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
-            transition: background 0.3s, box-shadow 0.3s;
+            border-radius: 16px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
+            transition: background 0.3s;
         }
-        h2 { text-align: center; color: #333; margin-bottom: 20px; border-bottom: 2px solid #ddd; padding-bottom: 10px; transition: color 0.3s, border-color 0.3s; }
-        
-        /* 時制切換按鈕樣式 */
+
+        h2 { text-align: center; margin-bottom: 10px; font-size: 1.5rem; }
+        .subtitle { text-align: center; font-size: 13px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5; }
+
         #format-toggle {
             position: absolute;
-            top: 20px; 
+            top: 15px; 
             right: 15px; 
-            padding: 6px 10px; 
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            background-color: #f8f9fa;
+            padding: 6px 12px; 
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            background-color: var(--card-bg);
             cursor: pointer;
-            font-size: 13px; 
+            font-size: 12px; 
             font-weight: bold;
-            transition: background-color 0.3s, color 0.3s, border-color 0.3s;
             z-index: 10;
         }
-        #format-toggle:hover {
-            background-color: #e2e6ea;
+
+        .section { 
+            margin-bottom: 20px; 
+            padding: 15px; 
+            background: var(--card-bg); 
+            border: 1px solid var(--border-color); 
+            border-radius: 12px; 
+            position: relative; 
         }
 
-        .section { margin-bottom: 30px; padding: 15px; background: #fff; border: 1px solid #ddd; border-radius: 10px; position: relative; transition: background 0.3s, border-color 0.3s; }
-        
-        /* 區塊標題樣式 */
         .section-title { 
-            font-size: 1.2em; 
+            font-size: 1.1rem; 
             font-weight: bold; 
             margin-bottom: 15px; 
-            display: block; 
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        
-        /* 輸入欄位通用樣式 */
-        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; transition: color 0.3s; }
+
+        label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 600; color: var(--text-muted); }
         input[type="tel"], input[type="number"] { 
-            width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 8px; font-size: 18px; box-sizing: border-box;
-            text-align: center; background-color: white; color: #333; transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+            width: 100%; padding: 12px; margin-bottom: 15px; border: 2px solid #eee; border-radius: 10px; font-size: 18px; box-sizing: border-box;
+            text-align: center; background-color: #fafafa; color: var(--text-main); transition: border-color 0.2s;
         }
-        input[type="tel"]::placeholder {
-            color: #aaa;
-            font-style: italic;
-        }
+        input:focus { outline: none; border-color: var(--primary-blue); background-color: #fff; }
+
+        .result-area { margin-top: 15px; padding: 15px; border-radius: 10px; display: none; text-align: center; border: 1px solid transparent; }
+        .ot-result-area { background-color: #e6f7ff; border-color: #91d5ff; }
+        .leave-result-area { background-color: #fffbe6; border-color: #ffe58f; }
         
-        /* 按鈕樣式 */
-        .action-bar { text-align: right; margin-bottom: 15px; margin-top: -10px; }
-        button { 
-            padding: 10px 15px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: bold; 
-            transition: background 0.3s, box-shadow 0.3s; display: inline-block; width: auto; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .btn-blue { background-color: #dc3545; color: white; }
-        .btn-green { background-color: #17a2b8; color: white; }
-        .btn-blue:hover { background-color: #bd2130; box-shadow: 0 4px 6px rgba(0,0,0,0.15); }
-        .btn-green:hover { background-color: #138496; box-shadow: 0 4px 6px rgba(0,0,0,0.15); }
-
-        .result-area { margin-top: 15px; padding: 15px; border-radius: 8px; display: none; text-align: center; transition: background-color 0.3s, border-color 0.3s; }
-        .ot-result-area { background-color: #e6f7ff; border: 1px solid #91d5ff; }
-        .leave-result-area { background-color: #fff3cd; border: 1px solid #ffeeba; }
+        .result-detail { text-align: left; font-size: 15px; line-height: 1.8; }
+        .highlight-range { color: var(--primary-red); font-weight: 800; font-size: 1.6rem; margin: 5px 0; }
+        .highlight-pay { color: #0056b3; font-weight: bold; font-size: 1.2em; }
+        .highlight-comp { color: #1e7e34; font-weight: bold; font-size: 1.2em; }
         
-        .result-detail { text-align: left; font-size: 16px; line-height: 1.6; color: #333; transition: color 0.3s; }
-        .highlight-range { color: #dc3545; font-weight: bold; font-size: 1.4em; }
-        .highlight-pay { color: #007bff; font-weight: bold; font-size: 1.2em; }
-        .highlight-comp { color: #28a745; font-weight: bold; font-size: 1.2em; }
-        
-        /* 超時警示樣式 */
-        .alert-red { color: #dc3545; font-weight: bold; font-size: 0.9em; margin-left: 10px; }
-        .elapsed-time { font-size: 1.1em; font-weight: bold; color: #17a2b8; margin-bottom: 10px; }
+        .alert-red { color: var(--primary-red); font-weight: bold; display: block; margin-top: 5px; font-size: 13px; }
+        .elapsed-time { font-size: 1rem; font-weight: bold; color: #17a2b8; margin: 10px 0; padding: 8px; background: rgba(23, 162, 184, 0.1); border-radius: 8px; }
 
-        /* 單點截止時間樣式 */
-        .cutoff-display {
-            color: #007bff; 
-            font-weight: bold; 
-            font-size: 0.9em;
-            display: block;
-            margin-top: 5px;
-        }
+        .cutoff-display { color: var(--primary-blue); font-weight: bold; font-size: 0.9em; margin-top: 8px; }
 
-        /* 預估補休顯示 */
-        .estimated-summary { 
-            font-size: 1.1em; 
-            font-weight: bold; 
-            color: #17a2b8; 
-            margin-bottom: 10px;
-        }
-        .estimated-summary .highlight-pay { color: #dc3545; }
-        .estimated-summary .highlight-comp { color: #007bff; }
-
-
-        /* ==================================== */
-        /* 深色模式 (DARK MODE)       */
-        /* ==================================== */
+        /* == Dark Mode == */
         body.dark-mode {
-            background-color: #121212;
-            color: #e0e0e0;
+            --bg-light: #121212;
+            --card-bg: #1e1e1e;
+            --text-main: #e0e0e0;
+            --text-muted: #aaaaaa;
+            --border-color: #333333;
         }
-        body.dark-mode .container {
-            background: #1f1f1f;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-        }
-        body.dark-mode h2 {
-            color: #ffffff;
-            border-bottom: 2px solid #333;
-        }
-        body.dark-mode p {
-            color: #ccc;
-        }
-        body.dark-mode label {
-            color: #bbb;
-        }
-        body.dark-mode input[type="tel"], 
-        body.dark-mode input[type="number"] {
-            background-color: #2c2c2c;
-            color: #e0e0e0;
-            border: 1px solid #444;
-        }
-        body.dark-mode input[type="tel"]::placeholder {
-            color: #888;
-        }
-        body.dark-mode .section {
-            background: #1f1f1f;
-            border: 1px solid #333;
-        }
-        body.dark-mode .ot-result-area { 
-            background-color: #2a353d; /* 深藍色背景 */
-            border: 1px solid #45677d; 
-        }
-        body.dark-mode .leave-result-area { 
-            background-color: #3b3a2a; /* 深黃色背景 */
-            border: 1px solid #6b6a4f; 
-        }
-        body.dark-mode .result-detail {
-            color: #e0e0e0; /* 結果區文字顏色 */
-        }
-        body.dark-mode #format-toggle {
-            background-color: #333;
-            color: #fff;
-            border: 1px solid #555;
-        }
-        body.dark-mode #format-toggle:hover {
-            background-color: #444;
-        }
-        body.dark-mode .elapsed-time {
-            color: #4dc3e5; /* 藍綠色 */
-        }
-        body.dark-mode .estimated-summary {
-            color: #e0e0e0;
-        }
+        body.dark-mode input { background-color: #252525; border-color: #444; }
+        body.dark-mode .ot-result-area { background-color: #1a2733; border-color: #2c475c; }
+        body.dark-mode .leave-result-area { background-color: #2b2a1a; border-color: #5c5a2c; }
 
-
-        /* == 響應式佈局 (Media Query for Desktop) == */
         @media (min-width: 768px) {
-            .container { max-width: 700px; }
-            .input-group { display: flex; gap: 20px; align-items: flex-start; }
-            .input-item { flex-grow: 1; width: 50%; }
-            .input-item label, .input-item input { width: 100%; }
-            .action-bar { margin-top: 5px; } 
-            #format-toggle { top: 30px; }
+            .container { max-width: 600px; margin-top: 40px; }
+            .input-group { display: flex; gap: 15px; }
+            .input-item { flex: 1; }
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <button id="format-toggle" onclick="toggleTimeFormat()">切換時制</button>
+    <button id="format-toggle" onclick="toggleTimeFormat()">24H</button>
 
     <h2>⚡ 搶修工時計算器</h2>
-    <p style="text-align: center; font-size: 14px; color: #888;">
-        加班申報規則：未滿 2H 以 2H 計，超過 2H 以整數小時進位。<br>
-        補休規則：23:00-07:00 時段，分級計算補休時數 (2H/4H/8H)。
-    </p>
+    <div class="subtitle">
+        加班：未滿 2H 算 2H，逾 2H 採整數進位。<br>
+        補休 (23-07)：按 2 / 4 / 6 / 8 小時級距計算。
+    </div>
 
-    <!-- 1. 加班與補休計算 (手動輸入區間) -->
+    <!-- 1. 手動輸入計算 -->
     <div class="section">
-        <span class="section-title" style="color: #17a2b8;">
-            1. 加班與補休計算 (手動區間)
-        </span>
-        <div class="action-bar">
-            <button onclick="runOT()" class="btn-green">計算時數</button>
-        </div>
+        <span class="section-title" style="color: #17a2b8;">🕒 1. 加班工時計算 (手動)</span>
         <div class="input-group">
             <div class="input-item">
-                <label>加班開始時間：</label>
-                <input type="tel" id="otStart" placeholder="例如 9:30 或 930" onblur="handleTimeInputFormatting(this)">
+                <label>開始時間</label>
+                <input type="tel" id="otStart" placeholder="09:30" onblur="handleAutoFormat(this); runOT()">
             </div>
             <div class="input-item">
-                <label>加班結束時間：</label>
-                <input type="tel" id="otEnd" placeholder="例如 9:30 或 930" onblur="handleTimeInputFormatting(this)">
+                <label>結束時間</label>
+                <input type="tel" id="otEnd" placeholder="17:30" onblur="handleAutoFormat(this); runOT()">
             </div>
         </div>
 
         <div id="otRes" class="result-area ot-result-area">
             <div class="result-detail">
-                實際總時長：
-                <span id="txtTime" style="font-weight: bold;">0 小時 0 分</span>
-                <span id="alert12Hours" class="alert-red" style="display: none;"> (已超過 12 小時，請注意!)</span>
+                實際時長：<span id="txtTime" style="font-weight: bold;">-</span>
+                <span id="alert12Hours" class="alert-red" style="display: none;">⚠️ 已連續工作超過 12 小時！</span>
                 <br>
-                實際夜間工時 (23:00-07:00)：<span id="txtNightTime" style="font-weight: bold;">0 小時 0 分</span>
-                <hr style="opacity: 0.3; margin: 10px 0;">
+                夜間工時 (23-07)：<span id="txtNightTime" style="font-weight: bold;">0 小時 0 分</span>
+                <hr style="opacity: 0.1; margin: 10px 0;">
                 <div style="text-align: center;">
-                    加班申報：<b class="highlight-pay" id="txtPay">0</b> 小時<br>
+                    加班申報：<b class="highlight-pay" id="txtPay">0</b> 小時 | 
                     補休時數：<b class="highlight-comp" id="txtComp">0</b> 小時
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 2. 預估下班時間範圍 (即時浮動工時) -->
+    <!-- 2. 即時預估 -->
     <div class="section">
-        <span class="section-title" style="color: #dc3545;">
-            2. 預估下班時間範圍 (參照系統時間)
-        </span>
-        <p style="font-size: 13px; color: #888; text-align: center; margin-top: -10px;">
-            <b style="color: #dc3545;">*週間 (Mon-Fri) 截止點為搶修循環中的第一個 08:00 AM。</b>
-        </p>
+        <span class="section-title" style="color: var(--primary-red);">📡 2. 預估下班時間 (即時)</span>
+        <div class="input-group">
+            <div class="input-item" style="flex: 2;">
+                <label>上班打卡時間</label>
+                <input type="tel" id="startTime" placeholder="如 07:30" onblur="handleAutoFormat(this); updateFloatingWork()">
+            </div>
+            <div class="input-item" style="flex: 1;">
+                <label>目前申報</label>
+                <input type="number" id="workHours" value="0" readonly>
+            </div>
+        </div>
 
-        <div id="leaveSectionContent" class="leave-section-content">
-            <div class="input-group">
-                <div class="input-item" style="flex-grow: 2;">
-                    <label>上班打卡時間：</label>
-                    <input type="tel" id="startTime" placeholder="例如 7:30" 
-                        onblur="handleTimeInputFormatting(this); updateFloatingWorkState()">
-                </div>
-                <div class="input-item" style="flex-grow: 1;">
-                    <label>當前申報工時：</label>
-                    <input type="number" id="workHours" value="0" step="1" inputmode="decimal" readonly>
-                </div>
-            </div>
+        <div id="elapsedTimeDisplay" class="elapsed-time" style="text-align: center; display: none;">
+            目前已工作：<span id="currentElapsed">0 小時 0 分</span>
+        </div>
 
-            <!-- 新增顯示目前已工作時長 -->
-            <div id="elapsedTimeDisplay" class="elapsed-time" style="text-align: center; display: none;">
-                您目前實際工作：<span id="currentElapsed" style="font-size: 1.2em;">0 小時 0 分</span>
+        <div id="leaveRes" class="result-area leave-result-area">
+            <div style="font-weight: bold; margin-bottom: 5px;">
+                預估申報：<span class="highlight-pay" id="estPay">0</span> H / 補休：<span class="highlight-comp" id="estComp">0</span> H
             </div>
-
-            <div class="action-bar">
-                <button onclick="updateFloatingWorkState()" class="btn-blue">刷新計算</button>
-            </div>
-            
-            <div id="leaveRes" class="result-area leave-result-area">
-                <div class="estimated-summary">
-                    預估申報：<b class="highlight-pay" id="estimatedPayHours">0</b> H / 補休：<b class="highlight-comp" id="estimatedCompHours">0</b> H
-                </div>
-                預估下班時間：
-                <div class="highlight-range" id="leaveTimeDisplay">--:--</div>
-                <div class="cutoff-display" id="cutoffMessage"></div>
-            </div>
+            建議下班區間：
+            <div class="highlight-range" id="leaveTimeRange">--:--</div>
+            <div class="cutoff-display" id="cutoffMsg"></div>
         </div>
     </div>
 </div>
 
 <script>
-// === 全域變數與 Cookie 處理 ===
-let timeFormatPreference = '24h'; // 預設 24h
+let timeFormat = '24h';
 
-/**
- * 設置 Cookie
- */
-function setCookie(name, value, days) {
-    let expires = "";
-    if (days) {
-        let date = new Date();
-        date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-        expires = "; expires=" + date.toUTCString();
-    }
-    document.cookie = name + "=" + (value || "") + expires + "; path=/";
+// --- 工具函數 ---
+function setCookie(n, v) { document.cookie = `${n}=${v};path=/;max-age=31536000`; }
+function getCookie(n) {
+    let match = document.cookie.match(new RegExp('(^| )' + n + '=([^;]+)'));
+    return match ? match[2] : null;
 }
 
-/**
- * 獲取 Cookie
- */
-function getCookie(name) {
-    let nameEQ = name + "=";
-    let ca = document.cookie.split(';');
-    for(let i=0; i < ca.length; i++) {
-        let c = ca[i];
-        while (c.charAt(0) === ' ') c = c.substring(1, c.length);
-        if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+function handleAutoFormat(el) {
+    let val = el.value.replace(/\D/g, '');
+    if (val.length >= 3) {
+        let h = val.length === 3 ? val.slice(0,1).padStart(2, '0') : val.slice(0,2);
+        let m = val.slice(-2);
+        if (parseInt(h) < 24 && parseInt(m) < 60) el.value = `${h}:${m}`;
     }
-    return null;
 }
 
-/**
- * 將 Date 物件轉換為指定時制格式的字串 (用於顯示結果)
- * @param {Date} date - Date 物件
- * @param {string} format - '24h' 或 '12h'
- * @returns {string} 格式化後的時間字串
- */
-function formatTime(date, format) {
+function parseTime(str) {
+    if (!str) return null;
+    let m = str.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    return { h: parseInt(m[1]), m: parseInt(m[2]) };
+}
+
+function formatDisplayTime(date) {
     let h = date.getHours();
     let m = date.getMinutes().toString().padStart(2, '0');
-    
-    if (format === '12h') {
-        const ampm = h >= 12 ? ' PM' : ' AM';
-        h = h % 12;
-        h = h ? h : 12; // 0點顯示為12點
-        h = h.toString();
-        return `${h}:${m}${ampm}`;
-    } else { // 24h format
-        h = h.toString().padStart(2, '0');
-        return `${h}:${m}`;
+    if (timeFormat === '12h') {
+        let suffix = h >= 12 ? ' PM' : ' AM';
+        h = h % 12 || 12;
+        return `${h}:${m}${suffix}`;
     }
+    return `${h.toString().padStart(2, '0')}:${m}`;
 }
+
+// --- 核心邏輯 ---
 
 /**
- * 解析使用者輸入的時間字串，支援 24H 和 12H (AM/PM) 格式。
- * @param {string} timeString - 使用者輸入的時間字串
- * @returns {string|null} 24小時制 'HH:MM' 格式字串，或 null 如果解析失敗。
+ * 更新後的補休級距計算
+ * 0 < h <= 2 -> 2H
+ * 2 < h <= 4 -> 4H
+ * 4 < h <= 6 -> 6H
+ * 6 < h      -> 8H
  */
-function parseInputTime(timeString) {
-    if (!timeString) return null;
-    timeString = timeString.trim().toUpperCase();
+function getNightComp(start, end) {
+    let totalMins = (end - start) / 60000;
+    let nightMins = 0;
     
-    // 1. 嘗試匹配 24H 格式 (HH:MM or H:MM)
-    let match24 = timeString.match(/^(\d{1,2}):(\d{2})$/);
-    if (match24) {
-        let h = parseInt(match24[1], 10);
-        let m = parseInt(match24[2], 10);
-        if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
-            return h.toString().padStart(2, '0') + ':' + m.toString().padStart(2, '0');
-        }
-    }
+    let checkPoints = [
+        { s: 0, e: 7, d: 0 },
+        { s: 23, e: 24, d: 0 },
+        { s: 0, e: 7, d: 1 }
+    ];
 
-    // 2. 嘗試匹配 12H 格式 (H:MM AM/PM)
-    let match12 = timeString.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
-    if (match12) {
-        let h = parseInt(match12[1], 10);
-        let m = parseInt(match12[2], 10);
-        let ampm = match12[3];
+    checkPoints.forEach(p => {
+        let ps = new Date(start); ps.setDate(ps.getDate() + p.d); ps.setHours(p.s, 0, 0, 0);
+        let pe = new Date(start); pe.setDate(pe.getDate() + p.d); pe.setHours(p.e, 0, 0, 0);
+        let overlap = Math.min(end, pe) - Math.max(start, ps);
+        if (overlap > 0) nightMins += overlap / 60000;
+    });
 
-        if (h < 1 || h > 12 || m < 0 || m > 59) return null;
-
-        if (ampm === 'PM' && h !== 12) {
-            h += 12;
-        } else if (ampm === 'AM' && h === 12) {
-            h = 0; // 12:xx AM is midnight (00:xx)
-        }
-        
-        return h.toString().padStart(2, '0') + ':' + m.toString().padStart(2, '0');
-    }
-
-    // 3. 嘗試匹配純數字格式 (例如 930 -> 09:30)
-    let digits = timeString.replace(/\D/g, ''); 
-    if (digits.length >= 3 && digits.length <= 4) {
-        let h, m;
-        if (digits.length === 3) {
-            h = parseInt(digits.slice(0, 1), 10);
-            m = parseInt(digits.slice(1, 3), 10);
-        } else { // 4 digits
-            h = parseInt(digits.slice(0, 2), 10);
-            m = parseInt(digits.slice(2, 4), 10);
-        }
-
-        if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
-            return h.toString().padStart(2, '0') + ':' + m.toString().padStart(2, '0');
-        }
-    }
-
-
-    return null; // 解析失敗
-}
-
-/**
- * 自動格式化數字時間輸入
- */
-function handleTimeInputFormatting(inputElement) {
-    let rawValue = inputElement.value.trim();
-    if (!rawValue) return;
-
-    if (rawValue.includes(':') || rawValue.toUpperCase().includes('AM') || rawValue.toUpperCase().includes('PM')) {
-        return;
-    }
+    let nh = nightMins / 60;
+    let comp = 0;
     
-    let digits = rawValue.replace(/\D/g, ''); 
-    let formattedTime = '';
+    if (nh > 6) comp = 8;
+    else if (nh > 4) comp = 6;
+    else if (nh > 2) comp = 4;
+    else if (nh > 0) comp = 2;
 
-    if (digits.length === 0) {
-        return;
-    } else if (digits.length <= 2) {
-        formattedTime = digits.padStart(2, '0') + ':00';
-    } else if (digits.length === 3) {
-        formattedTime = digits.slice(0, 1).padStart(2, '0') + ':' + digits.slice(1);
-    } else if (digits.length >= 4) {
-        formattedTime = digits.slice(0, 2) + ':' + digits.slice(2, 4);
-    } else {
-        return;
-    }
-
-    const [hStr, mStr] = formattedTime.split(':');
-    const h = parseInt(hStr, 10);
-    const m = parseInt(mStr, 10);
-
-    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
-        inputElement.value = formattedTime;
-    }
+    return { nightMins, comp };
 }
 
-
-// === UI 與時制切換邏輯 ===
-
-function loadTimeFormatPreference() {
-    const savedFormat = getCookie('timeFormat');
-    if (savedFormat) {
-        timeFormatPreference = savedFormat;
-    }
-    updateToggleButtonText();
+function calculatePayHours(realHours) {
+    return realHours <= 2 ? 2 : Math.ceil(realHours);
 }
 
-function updateToggleButtonText() {
-    const toggleButton = document.getElementById('format-toggle');
-    if (timeFormatPreference === '24h') {
-        toggleButton.innerText = '切換 12H';
-    } else { 
-        toggleButton.innerText = '切換 24H';
-    }
-}
+// --- UI 更新 ---
 
 function toggleTimeFormat() {
-    timeFormatPreference = (timeFormatPreference === '24h') ? '12h' : '24h';
-    setCookie('timeFormat', timeFormatPreference, 365);
-    updateToggleButtonText();
-    
-    const leaveRes = document.getElementById('leaveRes');
-    const otRes = document.getElementById('otRes');
-    
-    // 重新計算，確保格式切換
-    updateFloatingWorkState(); 
-    if (otRes.style.display === 'block') {
-        runOT(false); 
-    }
+    timeFormat = timeFormat === '24h' ? '12h' : '24h';
+    document.getElementById('format-toggle').innerText = timeFormat.toUpperCase();
+    setCookie('pref_fmt', timeFormat);
+    runOT();
+    updateFloatingWork();
 }
 
-// === 自動深色模式邏輯 ===
+function runOT() {
+    let sStr = document.getElementById('otStart').value;
+    let eStr = document.getElementById('otEnd').value;
+    let s = parseTime(sStr), e = parseTime(eStr);
 
-function isNightTime() {
-    const now = new Date();
-    const hour = now.getHours();
-    return hour >= 18 || hour < 6;
-}
-
-function isSystemDarkModePreferred() {
-    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-}
-
-function applyAutomaticTheme() {
-    const body = document.body;
-    const shouldBeDarkMode = isNightTime() || isSystemDarkModePreferred();
-    
-    if (shouldBeDarkMode) {
-        body.classList.add('dark-mode');
-    } else {
-        body.classList.remove('dark-mode');
-    }
-}
-
-if (window.matchMedia) {
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyAutomaticTheme);
-}
-
-// === 共享計算邏輯 ===
-
-/**
- * 計算兩個時間區間的交集分鐘數
- */
-function getIntersectionMins(aStart, aEnd, bStart, bEnd) {
-    const intersectionStart = new Date(Math.max(aStart.getTime(), bStart.getTime()));
-    const intersectionEnd = new Date(Math.min(aEnd.getTime(), bEnd.getTime()));
-
-    if (intersectionStart >= intersectionEnd) return 0;
-    return (intersectionEnd - intersectionStart) / 60000;
-}
-
-/**
- * 根據申報工時規則計算最終申報小時數
- * @param {number} realHours - 實際工作小時數 (含小數)
- * @returns {number} 申報小時數 (整數)
- */
-function calculateClaimHours(realHours) {
-    let finalPay;
-    if (realHours <= 2) {
-        finalPay = 2; // 未滿 2 小時，算 2 小時
-    } else {
-        finalPay = Math.ceil(realHours); // 超過 2 小時，無條件進位到整數小時
-    }
-    return finalPay;
-}
-
-/**
- * 根據新階梯式規則計算夜間補休小時數
- * @param {number} nightWorkHours - 夜間實際工作小時數 (含小數)
- * @returns {number} 補休小時數 (2, 4, 或 8)
- */
-function calculateCompHours(nightWorkHours) {
-    if (nightWorkHours <= 0) return 0;
-    if (nightWorkHours <= 2) return 2;
-    if (nightWorkHours <= 4) return 4;
-    return 8; // 4 小時以上補休 8 小時
-}
-
-/**
- * 計算給定工作區間的夜間 (23:00-07:00) 分鐘數與補休時數。
- * @param {Date} workStart - 工作開始時間 (實際帶有日期)
- * @param {Date} workEnd - 工作結束時間 (實際帶有日期)
- * @returns {{nightMins: number, compHours: number}}
- */
-function calculateNightComp(workStart, workEnd) {
-    if (workEnd <= workStart) return { nightMins: 0, compHours: 0 };
-    
-    const diffMins = (workEnd - workStart) / 60000;
-    const nightEndHour = 7; 
-    let totalNightMins = 0;
-    
-    // 檢查的三個夜間時段，涵蓋所有跨日/清晨情況：
-    let periodsToCheck = [];
-    
-    // 1. 當日 00:00 - 07:00 (處理 6:50 AM 打卡的情況)
-    let today = new Date(workStart);
-    periodsToCheck.push({
-        start: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0),
-        end: new Date(today.getFullYear(), today.getMonth(), today.getDate(), nightEndHour, 0, 0)
-    });
-    
-    // 2. 當日 23:00 - 隔日 07:00 (處理跨夜的情況)
-    let tomorrow = new Date(workStart);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    // 2a. 當日 23:00 - 隔日 00:00 
-    periodsToCheck.push({
-        start: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 0, 0),
-        end: new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), 0, 0, 0)
-    });
-    
-    // 2b. 隔日 00:00 - 隔日 07:00
-    periodsToCheck.push({
-        start: new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), 0, 0, 0),
-        end: new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), nightEndHour, 0, 0)
-    });
-    
-    for (const period of periodsToCheck) {
-        totalNightMins += getIntersectionMins(workStart, workEnd, period.start, period.end);
-    }
-    
-    // 雖然 intersection 已經是交集，但為了避免邏輯錯誤，確保不會超過實際總工時
-    if (totalNightMins > diffMins) totalNightMins = diffMins; 
-
-    let nightWorkHours = totalNightMins / 60;
-    let finalComp = calculateCompHours(nightWorkHours);
-
-    return { nightMins: totalNightMins, compHours: finalComp };
-}
-
-// === 1. 加班與補休計算 (runOT) - 適用於手動區間輸入 ===
-function runOT(showAlert = true) {
-    let inputStart = document.getElementById('otStart').value;
-    let inputEnd = document.getElementById('otEnd').value;
-    
-    const alertElement = document.getElementById('alert12Hours');
-    
-    let start24h = parseInputTime(inputStart);
-    let end24h = parseInputTime(inputEnd);
-
-    alertElement.style.display = 'none';
-
-    if(!start24h || !end24h) {
+    if (!s || !e) {
         document.getElementById('otRes').style.display = 'none';
-        if (showAlert) {
-            console.error('請輸入完整的開始與結束時間，並確保格式正確');
-        }
         return;
     }
 
-    // 1. 建立正確的 Date 物件，用於計算時長
-    const now = new Date();
-    let workStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 
-                             parseInt(start24h.substring(0, 2), 10), 
-                             parseInt(start24h.substring(3, 5), 10), 0);
-    let workEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 
-                           parseInt(end24h.substring(0, 2), 10), 
-                           parseInt(end24h.substring(3, 5), 10), 0);
+    let now = new Date();
+    let dS = new Date(now.getFullYear(), now.getMonth(), now.getDate(), s.h, s.m);
+    let dE = new Date(now.getFullYear(), now.getMonth(), now.getDate(), e.h, e.m);
+    if (dE <= dS) dE.setDate(dE.getDate() + 1);
 
-    // 處理跨日問題
-    if (workEnd <= workStart) workEnd.setDate(workEnd.getDate() + 1); 
-
-    let diffMins = (workEnd - workStart) / 60000;
-    if(diffMins <= 0) {
-        document.getElementById('otRes').style.display = 'none';
-        if (showAlert) {
-            console.error('結束時間需晚於開始時間');
-        }
-        return;
-    }
-
-    let realHours = diffMins / 60;
-
-    // 12 小時超時警示邏輯
-    alertElement.style.display = (diffMins > 720) ? 'inline' : 'none';
-
-    // 申報工時
-    let finalPay = calculateClaimHours(realHours);
+    let diff = (dE - dS) / 60000;
+    let { nightMins, comp } = getNightComp(dS, dE);
     
-    // 補休時數計算 (使用共享函數)
-    const { nightMins, compHours: finalComp } = calculateNightComp(workStart, workEnd);
-    
-    // 輸出格式化
-    let displayH = Math.floor(diffMins / 60);
-    let displayM = Math.round(diffMins % 60);
-    let nightDisplayH = Math.floor(nightMins / 60);
-    let nightDisplayM = Math.round(nightMins % 60); 
-
     document.getElementById('otRes').style.display = 'block';
-    document.getElementById('txtTime').innerText = `${displayH} 小時 ${displayM} 分`;
-    document.getElementById('txtNightTime').innerText = `${nightDisplayH} 小時 ${nightDisplayM} 分`;
-    document.getElementById('txtPay').innerText = finalPay;
-    document.getElementById('txtComp').innerText = finalComp;
+    document.getElementById('txtTime').innerText = `${Math.floor(diff/60)}H ${Math.round(diff%60)}M`;
+    document.getElementById('txtNightTime').innerText = `${Math.floor(nightMins/60)}H ${Math.round(nightMins%60)}M`;
+    document.getElementById('txtPay').innerText = calculatePayHours(diff/60);
+    document.getElementById('txtComp').innerText = comp;
+    document.getElementById('alert12Hours').style.display = diff > 720 ? 'block' : 'none';
 }
 
-// === 2. 預估下班時間範圍 (即時浮動工時) - 恢復截止邏輯 ===
-
-/**
- * 根據「上班打卡時間」和「當前系統時間」計算最近的 08:00 AM 截止點，但僅限於週間 (週一到週五)。
- * 截止點必須在 actualStart 之後，且是下一個 8:00 AM。
- * @param {Date} actualStart - 實際打卡開始時間 (帶有日期)
- * @param {Date} now - 當前系統時間
- * @returns {Date|null} 有效的 08:00 AM 截止點，或 null (如果是週末)
- */
-function calculateCutoffTime(actualStart, now) {
-    const currentDayOfWeek = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-
-    // 週末 (0=Sun, 6=Sat) 不適用此截止
-    if (currentDayOfWeek === 0 || currentDayOfWeek === 6) {
-        return null; 
-    }
-
-    // 1. 確定第一個 08:00 AM 截止點，以 actualStart 的日期為基準
-    let cutoff = new Date(actualStart);
-    cutoff.setHours(8, 0, 0, 0);
-
-    // 2. 如果上班打卡時間在 08:00 AM 之後，則截止點會推到隔日 08:00 AM
-    if (actualStart.getTime() >= cutoff.getTime()) {
-        cutoff.setDate(cutoff.getDate() + 1);
-    }
-    
-    // 此時，`cutoff` 就是該次搶修循環中，必須遵守的第一個 08:00 AM 截止點。
-    return cutoff;
-}
-
-
-/**
- * 處理「上班打卡時間」的 onblur/click 事件，自動計算已工作時長，更新申報工時欄位並觸發計算。
- */
-function updateFloatingWorkState() {
-    const inputTime = document.getElementById('startTime').value;
-    const workHoursInput = document.getElementById('workHours');
-    const elapsedDisplay = document.getElementById('elapsedTimeDisplay');
-    const currentElapsedSpan = document.getElementById('currentElapsed');
-    
-    let start24h = parseInputTime(inputTime);
-
-    if (!start24h) {
-        elapsedDisplay.style.display = 'none';
+function updateFloatingWork() {
+    let sStr = document.getElementById('startTime').value;
+    let s = parseTime(sStr);
+    if (!s) {
         document.getElementById('leaveRes').style.display = 'none';
-        document.getElementById('cutoffMessage').style.display = 'none';
-        workHoursInput.value = 0; 
-        return;
-    }
-    
-    // 1. 獲取當前時間 (Now)
-    const now = new Date();
-    // 2. 為了計算時差，將上班時間設定在當前日期
-    let actualStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 
-                             parseInt(start24h.substring(0, 2), 10), 
-                             parseInt(start24h.substring(3, 5), 10), 0);
-    
-    // 如果上班時間比現在時間還晚，假設它是昨天 (處理跨日情形)
-    if (actualStart > now) {
-        actualStart.setDate(actualStart.getDate() - 1);
-    }
-
-    // 實際經過的總分鐘數
-    let elapsedMins = (now - actualStart) / 60000;
-    
-    if (elapsedMins < 0) {
-        elapsedDisplay.style.display = 'none';
-        document.getElementById('leaveRes').style.display = 'none';
-        document.getElementById('cutoffMessage').style.display = 'none';
-        workHoursInput.value = 0;
+        document.getElementById('elapsedTimeDisplay').style.display = 'none';
         return;
     }
 
-    // 3. 申報工時的基礎分鐘數
-    let claimBaseMins = elapsedMins;
+    let now = new Date();
+    let dS = new Date(now.getFullYear(), now.getMonth(), now.getDate(), s.h, s.m);
+    if (dS > now) dS.setDate(dS.getDate() - 1);
 
-    // 4. 檢查是否有 08:00 AM 截止限制，如果有，則申報時間不能超過截止時間
-    const hardCutoffTime = calculateCutoffTime(actualStart, now);
-    let cutoffApplied = false;
-
-    if (hardCutoffTime) {
-        const potentialEnd = new Date(actualStart);
-        potentialEnd.setMinutes(potentialEnd.getMinutes() + claimBaseMins);
-
-        // 如果當前實際工作時間已經超過截止時間
-        if (potentialEnd.getTime() > hardCutoffTime.getTime()) {
-            claimBaseMins = (hardCutoffTime - actualStart) / 60000;
-            cutoffApplied = true;
-        }
-    }
+    let elapsed = (now - dS) / 60000;
     
-    // 5. 根據 claimBaseMins 計算申報工時 (截止後計算)
-    let realHours = claimBaseMins / 60;
-    let roundedClaimHours = calculateClaimHours(realHours);
-    
-    // 6. 計算補休時數 (夜間工時截止點 = actualStart + claimBaseMins)
-    let workEndForClaim = new Date(actualStart);
-    workEndForClaim.setMinutes(workEndForClaim.getMinutes() + claimBaseMins);
-    
-    const { compHours: finalComp } = calculateNightComp(actualStart, workEndForClaim);
-
-
-    // 7. 更新顯示
-    let elapsedHours = Math.floor(elapsedMins / 60);
-    let elapsedMinutes = Math.round(elapsedMins % 60);
-
-    // 更新顯示欄位
-    workHoursInput.value = roundedClaimHours; // 設置申報小時數
-    currentElapsedSpan.innerText = `${elapsedHours} 小時 ${elapsedMinutes} 分`;
-    elapsedDisplay.style.display = 'block';
-    
-    // 8. 自動執行預估計算
-    runLeave(roundedClaimHours, actualStart, finalComp, hardCutoffTime, cutoffApplied);
-}
-
-/**
- * 執行預估下班時間範圍計算
- * @param {number} claimHours - 申報工時 
- * @param {Date} actualStart - 實際打卡開始時間 (帶有正確日期上下文)
- * @param {number} finalComp - 預估的補休時數 (2, 4, 8)
- * @param {Date|null} hardCutoffTime - 應用的截止時間點
- * @param {boolean} cutoffApplied - 是否被截止限制截斷
- */
-function runLeave(claimHours, actualStart, finalComp, hardCutoffTime, cutoffApplied) {
-    let hrs = claimHours;
-    
-    // 更新頂部申報摘要
-    document.getElementById('estimatedPayHours').innerText = hrs;
-    document.getElementById('estimatedCompHours').innerText = finalComp;
-
-    // 1. **處理硬截止點覆蓋顯示 (依照使用者要求)**
-    if (cutoffApplied && hardCutoffTime) {
-        const T_cutoff_str = formatTime(hardCutoffTime, timeFormatPreference);
-        // 直接顯示截止時間，取代標準的 1 小時範圍
-        document.getElementById('leaveTimeDisplay').innerHTML = T_cutoff_str; 
-        
-        let cutoffMsg = `(申報 ${hrs} 小時 / 補休 ${finalComp} 小時)`;
-        cutoffMsg += `<br><span class="alert-red" style="font-size: 0.9em;">(週間截止限制已生效，工時鎖定於此時間點)</span>`;
-        document.getElementById('cutoffMessage').style.display = 'block';
-        document.getElementById('cutoffMessage').innerHTML = cutoffMsg;
-        document.getElementById('leaveRes').style.display = 'block';
-        return; // 顯示單一截止時間後退出
-    }
-    
-    // 2. 正常情況：計算標準範圍
-    
-    // 總時長 = 申報工時 (hrs * 60) 分鐘。
-    let totalDurationMins = (hrs * 60); 
-    
-    // 2a. 計算標準的最晚下班時間 (加上申報工時)
-    let d_latest = new Date(actualStart);
-    d_latest.setMinutes(d_latest.getMinutes() + totalDurationMins);
-    
-    // 2b. 計算最早下班時間 (減去 59 分鐘，得到範圍的開始點)
-    let d_earliest = new Date(d_latest);
-    d_earliest.setMinutes(d_earliest.getMinutes() - 59);
-
-    // 確保 d_earliest 不早於 actualStart
-    if (d_earliest.getTime() < actualStart.getTime()) {
-        d_earliest = actualStart;
+    // 週間截止 (Mon-Fri 08:00)
+    let cutoff = null;
+    let day = now.getDay();
+    if (day >= 1 && day <= 5) {
+        cutoff = new Date(dS);
+        cutoff.setHours(8, 0, 0, 0);
+        if (dS >= cutoff) cutoff.setDate(cutoff.getDate() + 1);
     }
 
-    // 格式化輸出
-    let T_latest_str = formatTime(d_latest, timeFormatPreference);
-    let T_earliest_str = formatTime(d_earliest, timeFormatPreference);
+    let isCutoff = cutoff && now > cutoff;
+    let calcEnd = isCutoff ? cutoff : now;
+    let calcMins = (calcEnd - dS) / 60000;
     
-    // 檢查是否跨日 (以 d_latest 為準)
-    let nextDay = (d_latest.getDate() !== actualStart.getDate()) ? '<span style="font-size:14px; color:gray;">(隔日) </span>' : '';
-    
-    // 輸出格式：[Earliest End Time] - [Latest End Time]
+    let pay = calculatePayHours(calcMins / 60);
+    let { comp } = getNightComp(dS, calcEnd);
+
+    document.getElementById('workHours').value = pay;
+    document.getElementById('estPay').innerText = pay;
+    document.getElementById('estComp').innerText = comp;
+    document.getElementById('currentElapsed').innerText = `${Math.floor(elapsed/60)} 小時 ${Math.round(elapsed%60)} 分`;
+    document.getElementById('elapsedTimeDisplay').style.display = 'block';
     document.getElementById('leaveRes').style.display = 'block';
-    document.getElementById('leaveTimeDisplay').innerHTML = `${nextDay}${T_earliest_str} - ${T_latest_str}`;
-    
-    let cutoffMsg = `(申報 ${hrs} 小時 / 補休 ${finalComp} 小時)`;
-    
-    // 顯示訊息
-    document.getElementById('cutoffMessage').style.display = 'block';
-    document.getElementById('cutoffMessage').innerHTML = cutoffMsg;
+
+    if (isCutoff) {
+        document.getElementById('leaveTimeRange').innerHTML = formatDisplayTime(cutoff);
+        document.getElementById('cutoffMsg').innerHTML = `⚠️ 週間截止已達標 (工時鎖定)`;
+    } else {
+        let dLatest = new Date(dS); dLatest.setMinutes(dS.getMinutes() + (pay * 60));
+        let dEarliest = new Date(dLatest); dEarliest.setMinutes(dLatest.getMinutes() - 59);
+        if (dEarliest < dS) dEarliest = dS;
+        
+        let prefix = dLatest.getDate() !== dS.getDate() ? '<small>(隔日) </small>' : '';
+        document.getElementById('leaveTimeRange').innerHTML = `${prefix}${formatDisplayTime(dEarliest)} - ${formatDisplayTime(dLatest)}`;
+        document.getElementById('cutoffMsg').innerText = `(建議在此區間內下班以符合申報)`;
+    }
 }
 
-
-// === 頁面載入時執行所有初始化 ===
-
-window.onload = function() {
-    loadTimeFormatPreference(); 
-    applyAutomaticTheme();      
-    
-    // 每 30 秒刷新一次，確保即時工時計算貼近當前系統時間
-    const startTimeInput = document.getElementById('startTime');
-
-    function checkAndUpdate() {
-        if (startTimeInput.value) {
-            updateFloatingWorkState();
-        }
+// --- 初始化 ---
+window.onload = () => {
+    let savedFmt = getCookie('pref_fmt');
+    if (savedFmt) {
+        timeFormat = savedFmt;
+        document.getElementById('format-toggle').innerText = timeFormat.toUpperCase();
     }
 
-    checkAndUpdate();
-
-    setInterval(checkAndUpdate, 30000); // 30 秒
+    const checkTheme = () => {
+        let h = new Date().getHours();
+        let isDark = h >= 18 || h < 6 || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.body.classList.toggle('dark-mode', isDark);
+    };
+    checkTheme();
+    setInterval(updateFloatingWork, 30000);
 };
 </script>
 </body>
